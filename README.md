@@ -8,20 +8,28 @@ Unity, Unreal or Blender.
 
 No build step, no install.
 
-## Running it
+## Opening it
 
-Serve the folder with any static web server and open it in a browser:
+Three ways, pick whichever suits you:
 
-```sh
-python3 -m http.server 8000      # or: npx serve .
-# then open http://localhost:8000/
-```
+1. **Online** — the repository deploys to GitHub Pages on every push to `main`
+   (`.github/workflows/pages.yml`). Editor: `https://3ecas.github.io/MODELING/`, player:
+   `https://3ecas.github.io/MODELING/example/player.html`. If the first deployment could not switch
+   Pages on by itself, enable it once under **Settings → Pages → Source: GitHub Actions** and re-run
+   the workflow.
+2. **Double-click** — `dist/blocky.html` is the whole editor in one file and `dist/player.html` the
+   player. Download them, open them in any modern browser, done. No server, works offline. (From a
+   file on disk the player cannot fetch the sample model by itself; use **Open .glb** or drop a file.)
+3. **From source** — serve the folder with any static web server and open it in a browser:
 
-Opening `index.html` directly with `file://` does not work, because the page uses ES modules.
+   ```sh
+   python3 -m http.server 8000      # or: npx serve .
+   # then open http://localhost:8000/
+   ```
 
-To put it online, enable GitHub Pages for the repository (Settings → Pages → Deploy from a branch →
-`main`, folder `/`). The editor will then be at `https://<user>.github.io/<repo>/` and the player at
-`https://<user>.github.io/<repo>/example/player.html`.
+   Opening `index.html` directly from disk does not work, because the source uses ES modules; that is
+   what the `dist/` files are for. Rebuild them after changing the source with
+   `npm install && npm run build`.
 
 Your work autosaves in the browser. Use **Save** to keep a `.json` project file and **Open** to load it.
 
@@ -228,6 +236,9 @@ js/history.js           snapshot undo / redo
 js/templates.js         rigged humanoid recipe, random NPC, in-place rebuild
 example/player.html     Three.js player: loads a GLB, plays clips, clones, WASD controller
 example/guard.glb       a sample export (humanoid with idle, walk and attack)
+dist/                   single-file builds of the editor and the player (open from disk)
+build.mjs               makes dist/ with esbuild (npm run build)
+.github/workflows/      GitHub Pages deployment
 vendor/three/           Three.js r160 (MIT) and the addons used
 ```
 

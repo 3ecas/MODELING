@@ -285,8 +285,10 @@
     if (window.opener) window.opener.postMessage({ type: 'blocky-player-ready' }, '*');
 
     const params = new URLSearchParams(location.search);
+    const fromDisk = location.protocol === 'file:'; // a double-clicked file cannot fetch the sample
     if (params.get('model')) loadURL(params.get('model'));
-    else if (!params.has('embedded')) loadURL('guard.glb');
+    else if (!params.has('embedded') && !fromDisk) loadURL('guard.glb');
+    else if (fromDisk && !params.has('embedded')) $('model-name').textContent = 'Open a .glb or drop one here';
 
     // ----- loop -----
     const clock = new THREE.Clock();
