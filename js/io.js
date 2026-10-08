@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 import { sample } from './animation.js';
-import { isBone } from './parts.js';
+import { isBone, hasMesh } from './parts.js';
 
 export function download(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -80,7 +80,7 @@ function addPartNodes(tree, parent, materials, nodes) {
     pivot.name = part.name;
     setRest(pivot, part);
     let mesh = null;
-    if (!isBone(part)) {
+    if (hasMesh(part)) {
       mesh = new THREE.Mesh(part.mesh.geometry, materialFor(materials, part.color));
       mesh.name = `${part.name} mesh`;
       mesh.position.fromArray(part.offset);
@@ -147,7 +147,7 @@ function exportSceneSkinned(model, { vertexColors = false } = {}) {
 
     // Merged, rigidly skinned geometry: vertices in the character's bind space (rest pose, world).
     const entries = tree
-      .filter(p => !isBone(p))
+      .filter(hasMesh)
       .map(p => ({ part: p, joint: bones.indexOf(boneOf.get(model.nearest(p, q => joints.has(q.id)).id)) }));
     entries.sort((a, b) => (a.part.color < b.part.color ? -1 : a.part.color > b.part.color ? 1 : 0));
 

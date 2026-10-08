@@ -33,6 +33,19 @@ Three ways, pick whichever suits you:
 
 Your work autosaves in the browser. Use **Save** to keep a `.json` project file and **Open** to load it.
 
+## The screen
+
+- **Menus** — File (new, open, save, exports, preview), Add (shapes, bones, folders), Kit (characters)
+  and Help (shortcuts) sit in the top bar, with the model name on the right.
+- **Objects** — the list on the left. Folders hold other objects and fold with the ▾ toggle; select
+  several objects and press Ctrl+G to put them in a new folder.
+- **Viewport corners** — tools top-left, views and display toggles top-right, undo / redo and the
+  status line bottom-left.
+- **Properties** — on the right: object, transform, shape and colour, with an inline After Effects
+  style colour picker (square plus hue strip) and the old-school palette under it.
+- **Timeline** — the inset panel along the bottom, with clips and presets on its first row,
+  transport and keying on its second, and the tracks below.
+
 ## What it does
 
 - **Parts kit** — Box, Cylinder, Cone, Sphere, Wedge, Plane. Round shapes have a "Sides" slider (3–32)
@@ -51,8 +64,9 @@ Your work autosaves in the browser. Use **Save** to keep a `.json` project file 
   box-selects, Ctrl+A selects everything, Shift+click in the parts list selects a range, and **Select
   children** grabs a whole subtree. The gizmo then moves, rotates or resizes the group around its centre;
   colour, parent, visibility, duplicate, delete and keyframes apply to every selected part.
-- **Parenting** — any part can be attached to any other part or bone. A parent's size never stretches
-  its children.
+- **Parenting and folders** — any object can be attached to any other object, bone or folder. A
+  parent's size never stretches its children. Folders are empty transform nodes: move or rotate the
+  folder and everything inside follows; they export as plain nodes.
 - **Flat colours** — a 32-colour palette, or any colour.
 - **Humanoid kit** — one click adds a rigged character: 16 bones (`hips, spine, neck, head, arm_L,
   forearm_L, hand_L, …, thigh_R, shin_R, foot_R`) with body parts attached. **Random NPC** rolls
@@ -172,6 +186,7 @@ geometry only.
 | Shift+click / Ctrl+click | Add to or remove from the selection |
 | Shift+drag | Box-select |
 | Ctrl+A | Select all |
+| Ctrl+G | Folder from selection |
 | Ctrl+D | Duplicate |
 | Delete / Backspace | Delete |
 | Ctrl+Z / Ctrl+Y | Undo / Redo |
@@ -238,7 +253,8 @@ js/viewport.js          renderer, camera, lights, grid, orbit + transform gizmo,
 js/animation.js         clips, sampling, the Animator (playback + keying), walk/idle/attack presets
 js/timeline.js          timeline panel: clip controls, ruler, playhead, keyframe rows
 js/character-panel.js   character sliders that regenerate the humanoid
-js/ui.js                outliner, properties panel, palette, status bar
+js/ui.js                menus, objects list with folders, properties panel, status
+js/colorpicker.js       inline saturation/value + hue picker
 js/io.js                save / open .json, skinned and parts GLB export, OBJ
 js/history.js           snapshot undo / redo
 js/templates.js         rigged humanoid recipe, random NPC, in-place rebuild

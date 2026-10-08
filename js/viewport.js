@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { isBone } from './parts.js';
+import { isBone, isGroup, hasMesh } from './parts.js';
 
 const SNAP = { translate: 0.05, rotate: THREE.MathUtils.degToRad(15), scale: 0.05 };
 const ACTIVE_COLOR = 0xf2b43c, SELECTED_COLOR = 0xffe9b0;
@@ -208,7 +208,7 @@ export class Viewport {
     for (const part of this.model.parts.values()) {
       if (!this.model.isShown(part)) continue;
       if (isBone(part) && !this.model.showBones) continue;
-      (isBone(part) ? part.pivot : part.mesh).getWorldPosition(v).project(this.camera);
+      (hasMesh(part) ? part.mesh : part.pivot).getWorldPosition(v).project(this.camera);
       if (v.z > 1) continue; // behind the camera
       const sx = rect.left + (v.x + 1) / 2 * rect.width, sy = rect.top + (1 - v.y) / 2 * rect.height;
       if (sx >= x0 && sx <= x1 && sy >= y0 && sy <= y1) out.push(part);
@@ -239,7 +239,7 @@ export class Viewport {
   transformTargets() {
     const sel = this.selection;
     if (this.mode === 'anchor') return this.selected ? [this.selected] : [];
-    if (sel.length <= 1) return sel.filter(p => !(this.mode === 'scale' && isBone(p)));
+    if (sel.length <= 1) return sel.filter(p => !(this.mode === 'scale' && !hasMesh(p)));
     const ids = new Set(sel.map(p => p.id));
     return sel.filter(p => {
       let q = p.parent != null ? this.model.parts.get(p.parent) : null;
@@ -261,7 +261,7 @@ export class Viewport {
 
     if (sel.length === 1) {
       const p = sel[0];
-      if (this.mode === 'scale' && isBone(p)) { this.gizmo.detach(); return; } // bones have no size to drag
+      if (this.mode === 'scale' && !hasMesh(p)) { this.gizmo.detach(); return; } // bones and folders have no size to drag
       // Move/rotate act on the pivot (the joint); size acts on the mesh so children are not distorted.
       this.gizmo.attach(this.mode === 'scale' ? p.mesh : p.pivot);
       this.gizmo.setSpace(this.mode === 'scale' ? 'local' : 'world');
@@ -318,7 +318,7 @@ export class Viewport {
       for (const e of s.parts) {
         w.copy(e.worldPos).sub(s.pos).multiply(f).add(s.pos);
         e.part.pivot.position.copy(w.applyMatrix4(e.parentInv));
-        if (!isBone(e.part)) {
+        if (hasMesh(e.part)) {
           e.part.mesh.scale.set(
             Math.max(0.01, e.size[0] * f.x), Math.max(0.01, e.size[1] * f.y), Math.max(0.01, e.size[2] * f.z));
         }
@@ -445,7 +445,7 @@ export class Viewport {
   triangleCount() {
     let n = 0;
     for (const p of this.model.parts.values()) {
-      if (!p.visible || isBone(p)) continue;
+      if (!p.visible || !hasMesh(p)) continue;
       n += p.mesh.geometry.attributes.position.count / 3;
     }
     return n;
