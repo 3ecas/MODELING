@@ -33,6 +33,10 @@ Your work autosaves in the browser. Use **Save** to keep a `.json` project file 
   with it. Bones draw as blue x-ray markers (toggle with **Bones** in the toolbar), are picked first
   when visible, and export as real glTF joints.
 - **Move / Rotate / Size** — a 3D gizmo (W / E / R) with snapping, numeric fields, and rotation sliders.
+- **Multi-selection** — Shift+click or Ctrl+click adds parts to the selection, Shift+drag in the viewport
+  box-selects, Ctrl+A selects everything, Shift+click in the parts list selects a range, and **Select
+  children** grabs a whole subtree. The gizmo then moves, rotates or resizes the group around its centre;
+  colour, parent, visibility, duplicate, delete and keyframes apply to every selected part.
 - **Parenting** — any part can be attached to any other part or bone. A parent's size never stretches
   its children.
 - **Flat colours** — a 32-colour palette, or any colour.
@@ -150,6 +154,9 @@ geometry only.
 | W / G | Move tool |
 | E | Rotate tool |
 | R | Size tool |
+| Shift+click / Ctrl+click | Add to or remove from the selection |
+| Shift+drag | Box-select |
+| Ctrl+A | Select all |
 | Ctrl+D | Duplicate |
 | Delete / Backspace | Delete |
 | Ctrl+Z / Ctrl+Y | Undo / Redo |
@@ -162,7 +169,10 @@ geometry only.
 | ← / → | Step one frame (Shift: five) |
 | Home / End | First / last frame |
 
-Left-drag orbits, right-drag pans, wheel zooms. Click a part or bone to select it.
+Left-drag orbits, right-drag pans, wheel zooms. Click a part or bone to select it. With several parts
+selected, the last one clicked is the active part: the properties fields show its values, while colour,
+parent and visibility changes go to the whole selection. A part whose parent is also selected moves
+with its parent rather than twice.
 
 ## Project file format
 

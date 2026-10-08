@@ -68,8 +68,8 @@ export class Animator {
     this.playing = false;
     this.loop = true;
     this.listeners = new Set();
-    /** Part currently being dragged by the gizmo: its pose is left alone while dragging. */
-    this.holdPart = null;
+    /** Parts currently being dragged by the gizmo: their pose is left alone while dragging. */
+    this.holdParts = new Set();
   }
 
   /** fn(kind): 'frame' (playhead moved), 'clip' (active clip changed), 'edit' (keys changed). */
@@ -121,7 +121,7 @@ export class Animator {
     const clip = this.clip;
     if (!clip) return;
     for (const part of this.model.parts.values()) {
-      if (part === this.holdPart) continue;
+      if (this.holdParts.has(part)) continue;
       const t = clip.tracks[part.id];
       const pos = t ? sample(clip, part.id, 'position', this.frame) : null;
       const rot = t ? sample(clip, part.id, 'rotation', this.frame) : null;

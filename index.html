@@ -86,7 +86,7 @@
     <aside id="outliner">
       <div class="panel-title">Parts <span id="part-count" class="muted"></span></div>
       <ul id="part-list"></ul>
-      <div class="hint">Click a part to select it. Drag the gizmo to move, rotate, or resize. Bones are the skeleton: parts attached to a bone move with it. ◆ marks parts with keyframes in the current clip.</div>
+      <div class="hint">Click a part to select it. Shift+click or Ctrl+click adds to the selection, Shift+click here selects a range, Shift+drag in the viewport box-selects, Ctrl+A selects all. Drag the gizmo to move, rotate, or resize everything selected. ◆ marks parts with keyframes in the current clip.</div>
     </aside>
 
     <section id="viewport">
@@ -98,6 +98,7 @@
     <aside id="properties">
       <div class="panel-title">Properties</div>
       <div id="props-empty" class="muted">Nothing selected.</div>
+      <div id="props-multi" class="multi" hidden></div>
       <form id="props" hidden autocomplete="off">
         <div class="row"><label>Name</label><input id="p-name" type="text" /></div>
         <div class="row"><label>Type</label><span id="p-type" class="value"></span></div>
@@ -135,9 +136,12 @@
         <div class="row"><label class="check"><input id="p-visible" type="checkbox" /> Visible</label></div>
 
         <div class="actions">
-          <button type="button" id="btn-duplicate" title="Duplicate (Ctrl+D)">Duplicate</button>
-          <button type="button" id="btn-mirror" title="Duplicate mirrored across X">Mirror X</button>
-          <button type="button" id="btn-delete" class="danger" title="Delete (Del)">Delete</button>
+          <button type="button" id="btn-duplicate" title="Duplicate the selection (Ctrl+D)">Duplicate</button>
+          <button type="button" id="btn-mirror" title="Duplicate the selection mirrored across X">Mirror X</button>
+          <button type="button" id="btn-delete" class="danger" title="Delete the selection (Del)">Delete</button>
+        </div>
+        <div class="actions">
+          <button type="button" id="btn-select-children" title="Add everything attached below the selected parts to the selection">Select children</button>
         </div>
       </form>
 
@@ -148,7 +152,8 @@
       <div class="hint">
         <b>Keys</b><br />
         W / E / R — move / rotate / size<br />
-        Ctrl+D duplicate · Del delete<br />
+        Ctrl+D duplicate · Del delete · Ctrl+A select all<br />
+        Shift+click add · Shift+drag box-select<br />
         Ctrl+Z undo · Ctrl+Y redo · Ctrl+S save<br />
         F focus · Esc deselect<br />
         1 / 3 / 7 / 5 — front / side / top / persp<br />

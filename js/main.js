@@ -20,21 +20,69 @@ const history = new History(model);
 const viewport = new Viewport(document.getElementById('canvas'), model);
 const animator = new Animator(model);
 
-let selectedId = null;
+let selectedIds = []; // ordered; the last one is the active part
 const selectListeners = [];
+
+function applySelection() {
+  selectedIds = selectedIds.filter(id => model.parts.has(id));
+  viewport.select(app.selectedParts());
+  ui.refreshAll();
+  for (const fn of selectListeners) fn(app.selected());
+}
 
 const app = {
   model, history, viewport, animator,
 
   // ----- selection -----
 
-  selected() { return selectedId != null ? model.parts.get(selectedId) || null : null; },
+  /** The active part (the last one selected), or null. */
+  selected() { return selectedIds.length ? model.parts.get(selectedIds[selectedIds.length - 1]) || null : null; },
+  selectedIds() { return selectedIds.filter(id => model.parts.has(id)); },
+  selectedParts() { return app.selectedIds().map(id => model.parts.get(id)); },
+  isSelected(id) { return selectedIds.includes(id); },
 
+  /** Selects exactly one part (or nothing). */
   select(id) {
-    selectedId = id != null && model.parts.has(id) ? id : null;
-    viewport.select(app.selected());
-    ui.refreshAll();
-    for (const fn of selectListeners) fn(app.selected());
+    selectedIds = id != null && model.parts.has(id) ? [id] : [];
+    applySelection();
+  },
+
+  /** Selects several parts; `active` (default: the last id) becomes the active part. */
+  selectMany(ids, { active } = {}) {
+    const seen = new Set();
+    selectedIds = ids.filter(id => model.parts.has(id) && !seen.has(id) && seen.add(id));
+    if (active != null && model.parts.has(active)) selectedIds = [...selectedIds.filter(id => id !== active), active];
+    applySelection();
+  },
+
+  /** Adds a part to the selection, or removes it if already selected. */
+  toggleSelect(id) {
+    if (!model.parts.has(id)) return;
+    selectedIds = selectedIds.includes(id) ? selectedIds.filter(x => x !== id) : [...selectedIds, id];
+    applySelection();
+  },
+
+  /** Selects the range between the active part and `id` in outliner order (Shift+click in the list). */
+  selectRange(id) {
+    const order = model.ordered().map(o => o.part.id);
+    const a = order.indexOf(app.selected()?.id), b = order.indexOf(id);
+    if (a < 0 || b < 0) return app.select(id);
+    const range = order.slice(Math.min(a, b), Math.max(a, b) + 1);
+    app.selectMany([...selectedIds, ...range], { active: id });
+  },
+
+  /** Selects every visible part (bones only when they are shown). */
+  selectAll() {
+    const ids = model.ordered().map(o => o.part).filter(p => model.isShown(p) && (!p.pivot || model.showBones || p.type !== 'bone')).map(p => p.id);
+    app.selectMany(ids, { active: app.selected()?.id });
+  },
+
+  /** Adds the descendants of every selected part to the selection. */
+  selectChildren() {
+    const ids = [...selectedIds];
+    const walk = id => { for (const c of model.childrenOf(id)) { ids.push(c.id); walk(c.id); } };
+    for (const id of app.selectedIds()) walk(id);
+    app.selectMany(ids, { active: app.selected()?.id });
   },
 
   onSelect(fn) { selectListeners.push(fn); },
@@ -100,22 +148,25 @@ const app = {
   setRecipe(rootId, recipe, { commit = true } = {}) {
     const root = model.batch(() => rebuildHumanoid(model, rootId, recipe));
     if (!root) return null;
-    app.select(selectedId != null && model.parts.has(selectedId) ? selectedId : root.id);
+    if (app.selectedIds().length) applySelection(); else app.select(root.id);
     if (commit) app.commit();
     return root;
   },
 
+  /** Duplicates the selection (each selected tree once; selected descendants come along with their parent). */
   duplicate(opts = {}) {
-    const sel = app.selected(); if (!sel) return;
-    const copy = model.batch(() => model.duplicate(sel.id, opts));
-    if (copy) { app.select(copy.id); app.commit(); }
+    const targets = topLevelSelected();
+    if (!targets.length) return;
+    const copies = model.batch(() => targets.map(p => model.duplicate(p.id, opts)).filter(Boolean));
+    if (copies.length) { app.selectMany(copies.map(c => c.id)); app.commit(); }
   },
 
   deleteSelected() {
-    const sel = app.selected(); if (!sel) return;
-    const next = sel.parent;
-    model.batch(() => model.removePart(sel.id));
-    app.select(next);
+    const parts = topLevelSelected(); if (!parts.length) return;
+    const active = app.selected();
+    const next = active && !parts.some(p => p !== active && model.isDescendant(active.id, p.id)) ? active.parent : null;
+    model.batch(() => { for (const p of parts) model.removePart(p.id); });
+    app.select(next != null && model.parts.has(next) ? next : null);
     app.commit();
   },
 
@@ -179,11 +230,11 @@ const app = {
     app.commit();
   },
 
-  /** Keys the selected part's full pose (position, rotation, size) at the current frame. */
+  /** Keys every selected part's pose (position, rotation, size) at the current frame. */
   keySelected(props) {
-    const sel = app.selected();
-    if (!sel || !animator.clip) return;
-    animator.keyPart(sel, props);
+    const parts = app.selectedParts();
+    if (!parts.length || !animator.clip) return;
+    for (const p of parts) animator.keyPart(p, props);
     app.commit();
   },
 
@@ -252,9 +303,19 @@ const app = {
 
 function afterHistory() {
   if (animator.clipId && !animator.clip) animator.setClip(null);
-  app.select(selectedId);
+  applySelection();
   animator.apply();
   autosave();
+}
+
+/** Selected parts that have no selected ancestor. */
+function topLevelSelected() {
+  const ids = new Set(app.selectedIds());
+  return app.selectedParts().filter(p => {
+    let q = p.parent != null ? model.parts.get(p.parent) : null;
+    while (q) { if (ids.has(q.id)) return false; q = q.parent != null ? model.parts.get(q.parent) : null; }
+    return true;
+  });
 }
 
 // Finds an x position on the ground that is not already occupied by a top-level part.
@@ -271,15 +332,23 @@ function autosave() {
 
 // ----- viewport events -----
 
-viewport.onPick(part => app.select(part ? part.id : null));
-viewport.onDrag((dragging, part) => { animator.holdPart = dragging ? part : null; });
-viewport.onTransformEnd((part, mode) => {
-  if (animator.clip) {
-    const t = model.readTransform(part);
-    const prop = mode === 'translate' ? 'position' : mode === 'rotate' ? 'rotation' : 'size';
-    animator.setKey(part.id, prop, t[prop]);
-  } else {
-    model.readBack(part);
+viewport.onPick((part, e) => {
+  if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) { if (part) app.toggleSelect(part.id); }
+  else app.select(part ? part.id : null);
+});
+viewport.onMarquee(parts => app.selectMany([...app.selectedIds(), ...parts.map(p => p.id)]));
+viewport.onDrag((dragging, parts) => { animator.holdParts = dragging ? new Set(parts) : new Set(); });
+viewport.onTransformEnd((parts, mode) => {
+  for (const part of parts) {
+    if (animator.clip) {
+      const t = model.readTransform(part);
+      const prop = mode === 'translate' ? 'position' : mode === 'rotate' ? 'rotation' : 'size';
+      animator.setKey(part.id, prop, t[prop]);
+      if (mode === 'scale' && parts.length > 1) animator.setKey(part.id, 'position', t.position); // sizes scale about the centre
+      if (mode === 'rotate' && parts.length > 1) animator.setKey(part.id, 'position', t.position); // orbits around the centre
+    } else {
+      model.readBack(part);
+    }
   }
   app.commit();
 });
@@ -289,7 +358,10 @@ viewport.onFrame(dt => animator.tick(dt));
 
 window.addEventListener('keydown', e => {
   const t = e.target;
-  if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+  // Let text fields, sliders and menus keep their keys; buttons and checkboxes pass shortcuts through.
+  const typing = t && (t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' ||
+    (t.tagName === 'INPUT' && !['checkbox', 'button', 'submit'].includes(t.type)));
+  if (typing) return;
   const k = e.key.toLowerCase();
   const ctrl = e.ctrlKey || e.metaKey;
 
@@ -297,6 +369,7 @@ window.addEventListener('keydown', e => {
   if (ctrl && k === 'z') { e.preventDefault(); app.undo(); return; }
   if (ctrl && k === 'y') { e.preventDefault(); app.redo(); return; }
   if (ctrl && k === 'd') { e.preventDefault(); app.duplicate(); return; }
+  if (ctrl && k === 'a') { e.preventDefault(); app.selectAll(); return; }
   if (ctrl && k === 's') { e.preventDefault(); app.save(); return; }
   if (ctrl) return;
 

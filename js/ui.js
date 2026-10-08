@@ -39,6 +39,12 @@ export function initUI(app) {
 
   $('m-name').addEventListener('change', e => { model.name = e.target.value.trim() || 'untitled'; app.commit(); });
 
+  // Buttons and checkboxes give focus back after a click, so keyboard shortcuts keep reaching the app.
+  document.addEventListener('click', e => {
+    const t = e.target.closest('button, input[type="checkbox"]');
+    if (t) t.blur();
+  });
+
   // ----- properties -----
   const form = $('props');
   const transformFields = {
@@ -90,21 +96,24 @@ export function initUI(app) {
     $('p-sides').value = p.sides;
   });
   $('p-sides-range').addEventListener('change', () => app.commit());
+  // Visibility, parent and colour apply to every selected part.
   $('p-visible').addEventListener('change', e => {
-    const p = app.selected(); if (!p) return;
-    model.update(p.id, { visible: e.target.checked });
+    if (!app.selected()) return;
+    for (const p of app.selectedParts()) model.update(p.id, { visible: e.target.checked });
     app.commit();
   });
   $('p-parent').addEventListener('change', e => {
-    const p = app.selected(); if (!p) return;
+    if (!app.selected()) return;
     const v = e.target.value === '' ? null : Number(e.target.value);
-    if (!model.setParent(p.id, v)) refreshProps();
+    let ok = true;
+    for (const p of app.selectedParts()) if (!model.setParent(p.id, v)) ok = false;
+    if (!ok) refreshProps();
     app.commit();
   });
 
   $('p-color').addEventListener('input', e => {
-    const p = app.selected(); if (!p) return;
-    model.update(p.id, { color: e.target.value });
+    if (!app.selected()) return;
+    for (const p of app.selectedParts()) model.update(p.id, { color: e.target.value });
     $('p-color-hex').value = e.target.value;
   });
   $('p-color').addEventListener('change', () => app.commit());
@@ -113,7 +122,7 @@ export function initUI(app) {
     let v = e.target.value.trim();
     if (/^[0-9a-f]{6}$/i.test(v)) v = '#' + v;
     if (!/^#[0-9a-f]{6}$/i.test(v)) { e.target.value = p.color; return; }
-    model.update(p.id, { color: v.toLowerCase() });
+    for (const q of app.selectedParts()) model.update(q.id, { color: v.toLowerCase() });
     app.commit();
   });
 
@@ -124,8 +133,8 @@ export function initUI(app) {
     sw.style.background = c;
     sw.title = c;
     sw.addEventListener('click', () => {
-      const p = app.selected(); if (!p) return;
-      model.update(p.id, { color: c });
+      if (!app.selected()) return;
+      for (const p of app.selectedParts()) model.update(p.id, { color: c });
       app.commit();
     });
     palette.appendChild(sw);
@@ -134,6 +143,7 @@ export function initUI(app) {
   $('btn-duplicate').addEventListener('click', () => app.duplicate());
   $('btn-mirror').addEventListener('click', () => app.duplicate({ mirrorX: true }));
   $('btn-delete').addEventListener('click', () => app.deleteSelected());
+  $('btn-select-children').addEventListener('click', () => app.selectChildren());
   form.addEventListener('submit', e => e.preventDefault());
 
   // ----- refreshers -----
@@ -154,8 +164,12 @@ export function initUI(app) {
 
   function refreshProps() {
     const p = app.selected();
+    const count = app.selectedIds().length;
     $('props-empty').hidden = !!p;
     form.hidden = !p;
+    const multi = $('props-multi');
+    multi.hidden = count < 2;
+    if (count >= 2) multi.textContent = `${count} selected · fields edit "${p.name}"; colour, parent, visibility and delete apply to all`;
     app.characterPanel?.refresh();
     if (!p) return;
     if (formBusy()) return; // don't clobber typing
@@ -188,11 +202,13 @@ export function initUI(app) {
     const list = $('part-list');
     list.innerHTML = '';
     const sel = app.selected();
+    const selIds = new Set(app.selectedIds());
     const clip = animator.clip;
     for (const { part, depth } of model.ordered()) {
       const li = document.createElement('li');
       li.style.paddingLeft = `${6 + depth * 14}px`;
-      if (sel && sel.id === part.id) li.classList.add('selected');
+      if (selIds.has(part.id)) li.classList.add('selected');
+      if (sel && sel.id === part.id) li.classList.add('active');
       if (!part.visible) li.classList.add('hidden');
       const sw = document.createElement('span');
       sw.className = 'swatch';
@@ -213,7 +229,11 @@ export function initUI(app) {
         li.appendChild(mark);
       }
       li.appendChild(type);
-      li.addEventListener('click', () => app.select(part.id));
+      li.addEventListener('click', e => {
+        if (e.shiftKey) app.selectRange(part.id);
+        else if (e.ctrlKey || e.metaKey) app.toggleSelect(part.id);
+        else app.select(part.id);
+      });
       li.addEventListener('dblclick', () => { app.select(part.id); viewport.focus(); });
       list.appendChild(li);
     }
@@ -230,7 +250,8 @@ export function initUI(app) {
   function refreshStatus() {
     const p = app.selected();
     const tris = Math.round(viewport.triangleCount());
-    const sel = p ? `${p.name}  ·  ${PART_TYPES[p.type].label}  ·  ` : '';
+    const n = app.selectedIds().length;
+    const sel = n > 1 ? `${n} selected (${p.name})  ·  ` : p ? `${p.name}  ·  ${PART_TYPES[p.type].label}  ·  ` : '';
     const clip = animator.clip;
     const anim = clip ? `  ·  ${clip.name} @ ${Math.round(animator.frame)}/${clip.length}` : '';
     const bones = [...model.parts.values()].filter(isBone).length;
