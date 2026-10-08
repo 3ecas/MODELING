@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { isBone } from './parts.js';
 
 const SNAP = { translate: 0.05, rotate: THREE.MathUtils.degToRad(15), scale: 0.05 };
 
@@ -114,12 +115,16 @@ export class Viewport {
     );
     this.raycaster.setFromCamera(ndc, this.camera);
     const hits = this.raycaster.intersectObject(this.model.root, true);
+    // Bones draw on top of the body (x-ray), so when they are shown they win the pick.
+    let meshHit = null;
     for (const h of hits) {
-      if (!h.object.isMesh) continue;
+      if (!h.object.isMesh || !h.object.visible) continue;
       const part = this.model.partFromObject(h.object);
-      if (part && part.visible) return part;
+      if (!part || !this.model.isShown(part)) continue;
+      if (isBone(part)) { if (this.model.showBones) return part; continue; }
+      if (!meshHit) meshHit = part;
     }
-    return null;
+    return meshHit;
   }
 
   // ----- selection + gizmo -----
@@ -138,6 +143,13 @@ export class Viewport {
   _attachGizmo() {
     const p = this.selected;
     if (!p) { this.gizmo.detach(); this.outline.visible = false; return; }
+    if (this.mode === 'scale' && isBone(p)) {
+      // Bones have no size to drag; keep the outline so the selection stays visible.
+      this.gizmo.detach();
+      this.outline.setFromObject(p.mesh);
+      this.outline.visible = true;
+      return;
+    }
     // Move/rotate act on the pivot (the joint); size acts on the mesh so children are not distorted.
     this.gizmo.attach(this.mode === 'scale' ? p.mesh : p.pivot);
     this.gizmo.setSpace(this.mode === 'scale' ? 'local' : 'world');
@@ -192,6 +204,7 @@ export class Viewport {
   }
 
   setGrid(on) { this.grid.visible = !!on; }
+  setBones(on) { this.model.setShowBones(on); }
 
   resize() {
     const el = this.canvas.parentElement;
@@ -215,7 +228,7 @@ export class Viewport {
   triangleCount() {
     let n = 0;
     for (const p of this.model.parts.values()) {
-      if (!p.visible) continue;
+      if (!p.visible || isBone(p)) continue;
       n += p.mesh.geometry.attributes.position.count / 3;
     }
     return n;

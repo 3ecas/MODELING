@@ -1,6 +1,6 @@
 // DOM wiring: toolbar, outliner, properties panel (with sliders), palette, status bar.
 
-import { PART_TYPES, PALETTE } from './parts.js';
+import { PART_TYPES, PALETTE, isBone } from './parts.js';
 
 const $ = id => document.getElementById(id);
 const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
@@ -21,8 +21,11 @@ export function initUI(app) {
     if (file) await app.openFile(file);
   });
   $('btn-save').addEventListener('click', () => app.save());
-  $('btn-export-glb').addEventListener('click', () => app.exportGLB());
-  $('btn-export-obj').addEventListener('click', () => app.exportOBJ());
+  const menu = $('export-menu');
+  const menuList = menu.querySelector('.menu-list');
+  $('btn-export').addEventListener('click', e => { e.stopPropagation(); menuList.hidden = !menuList.hidden; });
+  menuList.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => { menuList.hidden = true; app.export(b.dataset.export); }));
+  document.addEventListener('click', e => { if (!menu.contains(e.target)) menuList.hidden = true; });
   $('btn-humanoid').addEventListener('click', () => app.addHumanoid());
   $('btn-random').addEventListener('click', () => app.addRandomNPC());
   $('btn-undo').addEventListener('click', () => app.undo());
@@ -32,6 +35,7 @@ export function initUI(app) {
   $('chk-pixel').addEventListener('change', e => viewport.setPixel(e.target.checked));
   $('chk-wire').addEventListener('change', e => model.setWireframe(e.target.checked));
   $('chk-grid').addEventListener('change', e => viewport.setGrid(e.target.checked));
+  $('chk-bones').addEventListener('change', e => viewport.setBones(e.target.checked));
 
   $('m-name').addEventListener('change', e => { model.name = e.target.value.trim() || 'untitled'; app.commit(); });
 
@@ -156,9 +160,13 @@ export function initUI(app) {
     if (!p) return;
     if (formBusy()) return; // don't clobber typing
     $('p-name').value = p.name;
-    $('p-type').textContent = PART_TYPES[p.type].label;
+    $('p-type').textContent = PART_TYPES[p.type].label + (isBone(p) ? ' (joint of the skeleton)' : '');
     refreshPose();
     offsetFields.forEach((id, i) => { $(id).value = p.offset[i]; });
+    const bone = isBone(p);
+    $('sec-size').textContent = bone ? 'Marker thickness' : 'Size';
+    $('p-sy').hidden = bone; $('p-sz').hidden = bone;
+    $('sec-offset').firstChild.textContent = bone ? 'Tip (where the bone points) ' : 'Pivot offset ';
     $('row-sides').hidden = !PART_TYPES[p.type].hasSides;
     $('p-sides').value = p.sides || '';
     $('p-sides-range').value = p.sides || 3;
@@ -194,7 +202,7 @@ export function initUI(app) {
       name.textContent = part.name;
       name.title = part.name;
       const type = document.createElement('span');
-      type.className = 'type';
+      type.className = 'type' + (isBone(part) ? ' bone' : '');
       type.textContent = PART_TYPES[part.type].label.toLowerCase();
       li.append(sw, name);
       if (clip && clip.tracks[part.id]) {
@@ -225,7 +233,9 @@ export function initUI(app) {
     const sel = p ? `${p.name}  ·  ${PART_TYPES[p.type].label}  ·  ` : '';
     const clip = animator.clip;
     const anim = clip ? `  ·  ${clip.name} @ ${Math.round(animator.frame)}/${clip.length}` : '';
-    $('status').textContent = `${sel}${model.parts.size} parts  ·  ${tris} triangles${anim}`;
+    const bones = [...model.parts.values()].filter(isBone).length;
+    const boneTxt = bones ? `  ·  ${bones} bones` : '';
+    $('status').textContent = `${sel}${model.parts.size - bones} parts${boneTxt}  ·  ${tris} triangles${anim}`;
   }
 
   function refreshAll() { refreshOutliner(); refreshProps(); refreshToolbar(); refreshStatus(); }

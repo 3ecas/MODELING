@@ -223,6 +223,31 @@ const app = {
   save() { saveProject(model); },
   exportGLB(opts) { return exportGLB(model, opts); },
   exportOBJ(opts) { return exportOBJ(model, opts); },
+
+  /** Export menu entries. */
+  export(kind) {
+    switch (kind) {
+      case 'skinned': return exportGLB(model, { mode: 'skinned' });
+      case 'skinned-vc': return exportGLB(model, { mode: 'skinned', vertexColors: true });
+      case 'parts': return exportGLB(model, { mode: 'parts' });
+      case 'obj': return exportOBJ(model);
+      case 'preview': return app.previewInPlayer();
+      default: return null;
+    }
+  },
+
+  /** Opens the example player in a new tab and hands it the skinned GLB. */
+  previewInPlayer() {
+    const win = window.open('example/player.html?embedded=1', 'blocky-player');
+    if (!win) { window.alert('The browser blocked the player window. Allow pop-ups for this page and try again.'); return; }
+    const onReady = async e => {
+      if (e.source !== win || !e.data || e.data.type !== 'blocky-player-ready') return;
+      window.removeEventListener('message', onReady);
+      const glb = await exportGLB(model, { silent: true, mode: 'skinned' });
+      win.postMessage({ type: 'blocky-glb', data: glb, name: model.name }, '*', [glb]);
+    };
+    window.addEventListener('message', onReady);
+  },
 };
 
 function afterHistory() {
