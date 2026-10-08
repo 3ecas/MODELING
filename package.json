@@ -1,0 +1,14 @@
+{
+  "name": "blocky",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser tool for building and animating old-school low-poly 3D characters",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "python3 -m http.server 8000"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
+  }
+}
