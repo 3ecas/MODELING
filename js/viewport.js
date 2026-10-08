@@ -15,6 +15,9 @@ export class Viewport {
     this.pixel = false;
     this.pickHandlers = [];
     this.transformEndHandlers = [];
+    this.dragHandlers = [];
+    this.frameHandlers = [];
+    this.clock = new THREE.Clock();
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.renderer.setClearColor(0x2a2e36);
@@ -54,7 +57,8 @@ export class Viewport {
     this.gizmo.addEventListener('dragging-changed', e => {
       this.orbit.enabled = !e.value;
       if (e.value) this._dragged = true;
-      else if (this.selected) this.transformEndHandlers.forEach(fn => fn(this.selected));
+      this.dragHandlers.forEach(fn => fn(!!e.value, this.selected));
+      if (!e.value && this.selected) this.transformEndHandlers.forEach(fn => fn(this.selected, this.mode));
     });
     this.scene.add(this.gizmo);
     this.setSnap(true);
@@ -78,7 +82,12 @@ export class Viewport {
   // ----- events -----
 
   onPick(fn) { this.pickHandlers.push(fn); }
+  /** fn(part, mode) after a gizmo drag ends. */
   onTransformEnd(fn) { this.transformEndHandlers.push(fn); }
+  /** fn(isDragging, part) when a gizmo drag starts or ends. */
+  onDrag(fn) { this.dragHandlers.push(fn); }
+  /** fn(dtSeconds) once per rendered frame, before rendering. */
+  onFrame(fn) { this.frameHandlers.push(fn); }
 
   _setupPicking() {
     let down = null;
@@ -195,6 +204,8 @@ export class Viewport {
 
   _animate() {
     requestAnimationFrame(this._animate);
+    const dt = Math.min(this.clock.getDelta(), 0.1);
+    for (const fn of this.frameHandlers) fn(dt);
     this.orbit.update();
     if (this.selected && this.outline.visible) this.outline.update();
     this.renderer.render(this.scene, this.camera);

@@ -4,21 +4,35 @@
 
 import * as THREE from 'three';
 import { PART_TYPES, PALETTE, getGeometry, clampSides } from './parts.js';
+import { sanitizeClip } from './animation.js';
 
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
 
 export class Model {
   constructor(root) {
     this.root = root;            // THREE.Group that holds every top-level pivot
     this.parts = new Map();      // id -> part
     this.name = 'untitled';
+    this.animations = [];        // keyframe clips, see animation.js
     this._nextId = 1;
     this.wireframe = false;
     this.listeners = new Set();
   }
 
   onChange(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
-  emit(kind, part) { for (const fn of this.listeners) fn(kind, part); }
+  emit(kind, part) {
+    if (this._batchDepth) { this._batchDirty = true; return; }
+    for (const fn of this.listeners) fn(kind, part);
+  }
+
+  /** Runs fn with change events suppressed, then emits a single 'batch' event (if anything changed). */
+  batch(fn) {
+    this._batchDepth = (this._batchDepth || 0) + 1;
+    try { return fn(); }
+    finally {
+      if (--this._batchDepth === 0 && this._batchDirty) { this._batchDirty = false; this.emit('batch'); }
+    }
+  }
 
   // ----- creation -----
 
@@ -38,6 +52,8 @@ export class Model {
       color: typeof data.color === 'string' ? data.color : PALETTE[0],
       visible: data.visible !== false,
       parent: data.parent ?? null,
+      // Character roots carry the recipe they were generated from (see templates.js).
+      recipe: data.recipe && typeof data.recipe === 'object' ? { ...data.recipe } : null,
     };
 
     const material = new THREE.MeshLambertMaterial({ color: part.color, flatShading: true });
@@ -86,6 +102,7 @@ export class Model {
     part.pivot.removeFromParent();
     part.mesh.material.dispose();
     this.parts.delete(id);
+    for (const clip of this.animations) delete clip.tracks[id];
     this.emit('remove', part);
   }
 
@@ -95,6 +112,7 @@ export class Model {
       part.mesh.material.dispose();
     }
     this.parts.clear();
+    this.animations = [];
     this._nextId = 1;
     this.emit('clear');
   }
@@ -149,7 +167,7 @@ export class Model {
     const part = this.parts.get(id);
     if (!part) return;
     const geometryChanged = patch.sides != null && patch.sides !== part.sides;
-    for (const k of ['name', 'color', 'visible']) if (patch[k] !== undefined) part[k] = patch[k];
+    for (const k of ['name', 'color', 'visible', 'recipe']) if (patch[k] !== undefined) part[k] = patch[k];
     for (const k of ['position', 'rotation', 'size', 'offset']) if (patch[k]) part[k] = vec(patch[k], part[k]);
     if (geometryChanged) part.sides = clampSides(patch.sides);
     if (patch.size) part.size = part.size.map(v => Math.max(0.01, v));
@@ -160,12 +178,10 @@ export class Model {
   /** Pushes the data of a part into its Three.js objects. */
   apply(part) {
     const { pivot, mesh } = part;
-    pivot.position.fromArray(part.position);
-    pivot.rotation.set(...part.rotation.map(THREE.MathUtils.degToRad));
+    this.applyTransform(part, part);
     pivot.visible = part.visible;
     pivot.name = part.name;
     mesh.name = part.name;
-    mesh.scale.fromArray(part.size);
     mesh.position.fromArray(part.offset);
     const geo = getGeometry(part.type, part.sides);
     if (mesh.geometry !== geo) mesh.geometry = geo;
@@ -173,14 +189,34 @@ export class Model {
     mesh.material.wireframe = this.wireframe;
   }
 
-  /** Reads the Three.js objects back into the data (after a gizmo drag). */
-  readBack(part) {
+  /** Sets only position / rotation / size on the objects (used for animation poses). */
+  applyTransform(part, { position, rotation, size }) {
+    part.pivot.position.fromArray(position);
+    part.pivot.rotation.set(...rotation.map(THREE.MathUtils.degToRad));
+    part.mesh.scale.fromArray(size);
+  }
+
+  /** Reads the current transform of the Three.js objects (e.g. after a gizmo drag). */
+  readTransform(part) {
     const { pivot, mesh } = part;
-    part.position = round(pivot.position.toArray());
-    part.rotation = round([pivot.rotation.x, pivot.rotation.y, pivot.rotation.z].map(THREE.MathUtils.radToDeg));
-    part.size = round(mesh.scale.toArray()).map(v => Math.max(0.01, v));
-    mesh.scale.fromArray(part.size);
+    return {
+      position: round(pivot.position.toArray()),
+      rotation: round([pivot.rotation.x, pivot.rotation.y, pivot.rotation.z].map(THREE.MathUtils.radToDeg)),
+      size: round(mesh.scale.toArray()).map(v => Math.max(0.01, v)),
+    };
+  }
+
+  /** Reads the Three.js objects back into the rest pose data (after a gizmo drag). */
+  readBack(part) {
+    Object.assign(part, this.readTransform(part));
+    part.mesh.scale.fromArray(part.size);
     this.emit('update', part);
+  }
+
+  /** Looks a part up by name (first match). */
+  byName(name) {
+    for (const p of this.parts.values()) if (p.name === name) return p;
+    return null;
   }
 
   setWireframe(on) {
@@ -226,11 +262,13 @@ export class Model {
   // ----- serialization -----
 
   serializePart(p) {
-    return {
+    const out = {
       id: p.id, name: p.name, type: p.type,
       position: [...p.position], rotation: [...p.rotation], size: [...p.size], offset: [...p.offset],
       sides: p.sides, color: p.color, visible: p.visible, parent: p.parent,
     };
+    if (p.recipe) out.recipe = { ...p.recipe };
+    return out;
   }
 
   toJSON() {
@@ -239,10 +277,19 @@ export class Model {
       version: FORMAT_VERSION,
       name: this.name,
       parts: this.ordered().map(({ part }) => this.serializePart(part)),
+      animations: this.animations.map(c => ({ ...c, tracks: cloneTracks(c.tracks) })),
     };
   }
 
   fromJSON(json) {
+    // Suppress the intermediate clear/add events: listeners get one 'load' at the end.
+    this._batchDepth = (this._batchDepth || 0) + 1;
+    try { this._load(json); }
+    finally { this._batchDepth--; this._batchDirty = false; }
+    this.emit('load');
+  }
+
+  _load(json) {
     this.clear();
     this.name = typeof json?.name === 'string' ? json.name : 'untitled';
     const list = Array.isArray(json?.parts) ? json.parts : [];
@@ -258,8 +305,22 @@ export class Model {
       this.addPart(d);
     }
     for (const d of pending) { d.parent = null; this.addPart(d); }
-    this.emit('load');
+
+    const clips = Array.isArray(json?.animations) ? json.animations : [];
+    this.animations = clips.map(sanitizeClip);
+    for (const clip of this.animations) {
+      for (const pid of Object.keys(clip.tracks)) if (!this.parts.has(Number(pid))) delete clip.tracks[pid];
+    }
   }
+}
+
+function cloneTracks(tracks) {
+  const out = {};
+  for (const [pid, t] of Object.entries(tracks)) {
+    out[pid] = {};
+    for (const [prop, keys] of Object.entries(t)) out[pid][prop] = keys.map(k => ({ f: k.f, v: [...k.v] }));
+  }
+  return out;
 }
 
 function vec(v, fallback) {

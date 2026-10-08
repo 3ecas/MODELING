@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
+import { sample } from './animation.js';
 
 export function download(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -47,6 +48,7 @@ function exportScene(model) {
   const root = new THREE.Group();
   root.name = safeName(model.name);
   const map = new Map(); // part id -> exported pivot
+  const nodes = new Map(); // part id -> { pivot, mesh }
   const materials = new Map();
 
   for (const { part } of model.ordered()) {
@@ -71,30 +73,67 @@ function exportScene(model) {
 
     (part.parent != null ? map.get(part.parent) : root).add(pivot);
     map.set(part.id, pivot);
+    nodes.set(part.id, { pivot, mesh });
   }
   root.updateMatrixWorld(true);
-  return root;
+  return { root, nodes };
+}
+
+/**
+ * Converts the document's clips into Three.js AnimationClips for the export scene.
+ * Every frame is baked, so the in-app easing is reproduced exactly in any engine.
+ */
+export function buildAnimationClips(model, nodes) {
+  const clips = [];
+  const euler = new THREE.Euler(), q = new THREE.Quaternion();
+  for (const clip of model.animations) {
+    const tracks = [];
+    for (const [pid, track] of Object.entries(clip.tracks)) {
+      const n = nodes.get(Number(pid));
+      if (!n) continue;
+      const times = [];
+      for (let f = 0; f <= clip.length; f++) times.push(f / clip.fps);
+      for (const prop of ['position', 'rotation', 'size']) {
+        if (!track[prop] || !track[prop].length) continue;
+        const values = [];
+        for (let f = 0; f <= clip.length; f++) {
+          const v = sample(clip, Number(pid), prop, f);
+          if (prop === 'rotation') {
+            euler.set(...v.map(THREE.MathUtils.degToRad));
+            q.setFromEuler(euler);
+            values.push(q.x, q.y, q.z, q.w);
+          } else values.push(...v);
+        }
+        if (prop === 'position') tracks.push(new THREE.VectorKeyframeTrack(`${n.pivot.uuid}.position`, times, values));
+        else if (prop === 'rotation') tracks.push(new THREE.QuaternionKeyframeTrack(`${n.pivot.uuid}.quaternion`, times, values));
+        else tracks.push(new THREE.VectorKeyframeTrack(`${n.mesh.uuid}.scale`, times, values));
+      }
+    }
+    if (tracks.length) clips.push(new THREE.AnimationClip(clip.name, clip.length / clip.fps, tracks));
+  }
+  return clips;
 }
 
 /** Exports a binary glTF. Resolves with the ArrayBuffer (also downloads unless `silent`). */
-export function exportGLB(model, { silent = false } = {}) {
-  const scene = exportScene(model);
+export function exportGLB(model, { silent = false, animations = true } = {}) {
+  const { root, nodes } = exportScene(model);
+  const clips = animations ? buildAnimationClips(model, nodes) : [];
   return new Promise((resolve, reject) => {
     new GLTFExporter().parse(
-      scene,
+      root,
       result => {
         if (!silent) download(new Blob([result], { type: 'model/gltf-binary' }), `${safeName(model.name)}.glb`);
         resolve(result);
       },
       err => reject(err),
-      { binary: true, onlyVisible: true },
+      { binary: true, onlyVisible: true, animations: clips },
     );
   });
 }
 
-/** Exports Wavefront OBJ (geometry only, no colours). Returns the text. */
+/** Exports Wavefront OBJ (geometry only, no colours or animation). Returns the text. */
 export function exportOBJ(model, { silent = false } = {}) {
-  const scene = exportScene(model);
+  const { root: scene } = exportScene(model);
   const text = new OBJExporter().parse(scene);
   if (!silent) download(new Blob([text], { type: 'text/plain' }), `${safeName(model.name)}.obj`);
   return text;

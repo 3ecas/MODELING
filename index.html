@@ -23,9 +23,9 @@
       <span class="label">File</span>
       <button id="btn-new" title="New empty model">New</button>
       <button id="btn-open" title="Open a .json project">Open</button>
-      <button id="btn-save" title="Save project as .json">Save</button>
-      <button id="btn-export-glb" title="Export as .glb (Three.js, Godot, Unity, Unreal, Blender)">GLB</button>
-      <button id="btn-export-obj" title="Export as .obj">OBJ</button>
+      <button id="btn-save" title="Save project as .json (Ctrl+S)">Save</button>
+      <button id="btn-export-glb" title="Export as .glb with animations (Three.js, Godot, Unity, Unreal, Blender)">GLB</button>
+      <button id="btn-export-obj" title="Export as .obj (geometry only)">OBJ</button>
       <input id="file-input" type="file" accept=".json,application/json" hidden />
     </div>
 
@@ -75,12 +75,13 @@
     <aside id="outliner">
       <div class="panel-title">Parts <span id="part-count" class="muted"></span></div>
       <ul id="part-list"></ul>
-      <div class="hint">Click a part to select it. Drag the gizmo to move, rotate, or resize.</div>
+      <div class="hint">Click a part to select it. Drag the gizmo to move, rotate, or resize. ◆ marks parts with keyframes in the current clip.</div>
     </aside>
 
     <section id="viewport">
       <canvas id="canvas"></canvas>
       <div id="status"></div>
+      <div id="anim-badge" hidden>ANIMATING · edits create keyframes</div>
     </section>
 
     <aside id="properties">
@@ -99,6 +100,9 @@
         <div class="row xyz">
           <input id="p-rx" type="number" step="15" /><input id="p-ry" type="number" step="15" /><input id="p-rz" type="number" step="15" />
         </div>
+        <div class="row slider"><span class="axis x">X</span><input id="p-rsx" type="range" min="-180" max="180" step="1" /></div>
+        <div class="row slider"><span class="axis y">Y</span><input id="p-rsy" type="range" min="-180" max="180" step="1" /></div>
+        <div class="row slider"><span class="axis z">Z</span><input id="p-rsz" type="range" min="-180" max="180" step="1" /></div>
         <div class="section">Size</div>
         <div class="row xyz">
           <input id="p-sx" type="number" step="0.05" min="0.01" /><input id="p-sy" type="number" step="0.05" min="0.01" /><input id="p-sz" type="number" step="0.05" min="0.01" />
@@ -108,7 +112,10 @@
           <input id="p-ox" type="number" step="0.05" /><input id="p-oy" type="number" step="0.05" /><input id="p-oz" type="number" step="0.05" />
         </div>
 
-        <div class="row" id="row-sides"><label>Sides</label><input id="p-sides" type="number" min="3" max="32" step="1" /></div>
+        <div id="row-sides">
+          <div class="row"><label>Sides</label><input id="p-sides" type="number" min="3" max="32" step="1" /></div>
+          <div class="row slider"><span class="axis"></span><input id="p-sides-range" type="range" min="3" max="32" step="1" /></div>
+        </div>
 
         <div class="section">Colour</div>
         <div class="row"><input id="p-color" type="color" /><input id="p-color-hex" type="text" class="hex" maxlength="7" /></div>
@@ -123,18 +130,66 @@
         </div>
       </form>
 
+      <div id="character" hidden></div>
+
       <div class="panel-title" style="margin-top:12px">Model</div>
       <div class="row"><label>Name</label><input id="m-name" type="text" /></div>
       <div class="hint">
         <b>Keys</b><br />
         W / E / R — move / rotate / size<br />
         Ctrl+D duplicate · Del delete<br />
-        Ctrl+Z undo · Ctrl+Y redo<br />
+        Ctrl+Z undo · Ctrl+Y redo · Ctrl+S save<br />
         F focus · Esc deselect<br />
-        1 / 3 / 7 / 5 — front / side / top / persp
+        1 / 3 / 7 / 5 — front / side / top / persp<br />
+        Space play · K key · ← → frame · Home / End
       </div>
     </aside>
   </main>
+
+  <section id="timeline">
+    <div class="tl-head">
+      <span class="label">Animation</span>
+      <select id="tl-clip" title="Active clip. Pick 'Rest pose' to edit the model itself."></select>
+      <button id="tl-new" title="Create an empty clip">New clip</button>
+      <span class="tl-presets">
+        <button id="tl-preset-walk" title="Add a walk cycle for the selected character">Walk</button>
+        <button id="tl-preset-idle" title="Add an idle loop for the selected character">Idle</button>
+        <button id="tl-preset-attack" title="Add a sword swing for the selected character">Attack</button>
+      </span>
+      <button id="tl-rename">Rename</button>
+      <button id="tl-dup">Duplicate</button>
+      <button id="tl-del" class="danger">Delete clip</button>
+      <span class="sep"></span>
+      <button id="tl-play" class="icon" title="Play / pause (Space)">▶</button>
+      <button id="tl-stop" class="icon" title="Stop and rewind">■</button>
+      <label class="check"><input id="tl-loop" type="checkbox" checked /> Loop</label>
+      <label class="field">Frame <input id="tl-frame" type="number" min="0" step="1" /></label>
+      <label class="field">Length <input id="tl-length" type="number" min="1" max="100000" step="1" /></label>
+      <label class="field">FPS <input id="tl-fps" type="number" min="1" max="120" step="1" /></label>
+      <select id="tl-interp" title="How values move between keys">
+        <option value="smooth">Smooth</option>
+        <option value="linear">Linear</option>
+      </select>
+      <span class="sep"></span>
+      <button id="tl-key" title="Key the selected part's pose at this frame (K)">Key</button>
+      <button id="tl-key-all" title="Key every animated part at this frame (holds the pose)">Key all</button>
+      <button id="tl-del-key" title="Delete the selected part's key at this frame">Delete key</button>
+      <button id="tl-del-track" title="Remove every key of the selected part">Remove track</button>
+      <button id="tl-collapse" class="icon" title="Collapse / expand">▾</button>
+    </div>
+    <div class="tl-body">
+      <div id="tl-empty" class="muted">No clip selected. Create a clip or pick a preset, then pose parts with the gizmo: every change becomes a keyframe at the current frame.</div>
+      <div id="tl-grid" hidden>
+        <div id="tl-names">
+          <div class="tl-ruler-spacer"></div>
+        </div>
+        <div id="tl-tracks">
+          <div id="tl-ruler"><div id="tl-playhead"></div></div>
+          <div id="tl-rows"></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <script type="module" src="js/main.js"></script>
 </body>
