@@ -153,12 +153,13 @@ aside {
   text-overflow: ellipsis;
 }
 #part-list li:hover { background: var(--panel-2); }
-#part-list li.selected { background: var(--accent); color: #1b1d22; font-weight: 600; }
+#part-list li.selected { background: rgba(242, 180, 60, 0.28); }
+#part-list li.active { background: var(--accent); color: #1b1d22; font-weight: 600; }
 #part-list li.hidden { opacity: 0.45; }
 #part-list .swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.4); flex: none; }
 #part-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 #part-list .type { color: var(--muted); font-size: 11px; margin-left: auto; flex: none; }
-#part-list li.selected .type { color: #1b1d22; }
+#part-list li.active .type { color: #1b1d22; }
 
 /* Properties */
 #props .row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
@@ -262,4 +263,8 @@ input[type="range"] { width: 100%; min-width: 0; accent-color: var(--accent); he
 .key.current { background: var(--accent); }
 .key.dragging { cursor: grabbing; background: var(--accent-2); }
 .key-mark { color: var(--accent); font-size: 9px; margin-left: 4px; }
-#part-list li.selected .key-mark { color: #1b1d22; }
+#part-list li.active .key-mark { color: #1b1d22; }
+
+/* Multi-selection */
+.marquee { position: absolute; border: 1px dashed var(--accent); background: rgba(242, 180, 60, 0.12); pointer-events: none; z-index: 5; }
+#props-multi { font-size: 11px; color: var(--accent); margin-bottom: 8px; line-height: 1.5; }

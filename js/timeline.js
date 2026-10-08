@@ -51,12 +51,14 @@ export function initTimeline(app) {
   el.key.addEventListener('click', () => app.keySelected());
   el.keyAll.addEventListener('click', () => { animator.keyAll(); app.commit(); });
   el.delKey.addEventListener('click', () => {
-    const p = app.selected(); if (!p) return;
-    if (animator.deleteKey(p.id, Math.round(animator.frame))) app.commit();
+    let any = false;
+    for (const p of app.selectedParts()) if (animator.deleteKey(p.id, Math.round(animator.frame))) any = true;
+    if (any) app.commit();
   });
   el.delTrack.addEventListener('click', () => {
-    const p = app.selected(); if (!p) return;
-    if (animator.removeTrack(p.id)) app.commit();
+    let any = false;
+    for (const p of app.selectedParts()) if (animator.removeTrack(p.id)) any = true;
+    if (any) app.commit();
   });
   el.collapse.addEventListener('click', () => {
     panel.classList.toggle('collapsed');
@@ -153,20 +155,21 @@ export function initTimeline(app) {
     if (!clip) return;
     const step = buildRuler(clip);
     const sel = app.selected();
+    const selIds = new Set(app.selectedIds());
     const cur = Math.round(animator.frame);
     for (const { part, depth } of model.ordered()) {
       if (!clip.tracks[part.id]) continue;
       rowParts.push(part);
       const name = document.createElement('div');
-      name.className = 'tl-name' + (sel && sel.id === part.id ? ' selected' : '');
+      name.className = 'tl-name' + (selIds.has(part.id) ? ' selected' : '');
       name.style.paddingLeft = `${8 + depth * 10}px`;
       name.textContent = part.name;
       name.title = `${part.name} — ${Object.keys(clip.tracks[part.id]).join(', ')}`;
-      name.addEventListener('click', () => app.select(part.id));
+      name.addEventListener('click', e => (e.ctrlKey || e.metaKey || e.shiftKey ? app.toggleSelect(part.id) : app.select(part.id)));
       el.names.appendChild(name);
 
       const row = document.createElement('div');
-      row.className = 'tl-row' + (sel && sel.id === part.id ? ' selected' : '');
+      row.className = 'tl-row' + (selIds.has(part.id) ? ' selected' : '');
       row.dataset.part = part.id;
       for (let f = 0; f <= clip.length; f += step) {
         const g = document.createElement('div');
@@ -223,9 +226,9 @@ export function initTimeline(app) {
   }
 
   function refreshSelection() {
-    const sel = app.selected();
-    el.names.querySelectorAll('.tl-name').forEach((n, i) => n.classList.toggle('selected', !!sel && rowParts[i]?.id === sel.id));
-    el.rows.querySelectorAll('.tl-row').forEach(r => r.classList.toggle('selected', !!sel && Number(r.dataset.part) === sel.id));
+    const selIds = new Set(app.selectedIds());
+    el.names.querySelectorAll('.tl-name').forEach((n, i) => n.classList.toggle('selected', selIds.has(rowParts[i]?.id)));
+    el.rows.querySelectorAll('.tl-row').forEach(r => r.classList.toggle('selected', selIds.has(Number(r.dataset.part))));
     updatePlayhead();
   }
 
