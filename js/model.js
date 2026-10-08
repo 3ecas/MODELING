@@ -273,6 +273,46 @@ export class Model {
     this.emit('update', part);
   }
 
+  /**
+   * Moves a part's anchor (pivot) to the point `p`, given in the part's own frame, while the shape,
+   * the children and every keyframe stay where they are in the world.
+   */
+  moveAnchor(id, p) {
+    const part = this.parts.get(id);
+    if (!part || !Array.isArray(p) || p.length !== 3) return false;
+    const local = new THREE.Vector3().fromArray(p);
+    if (local.lengthSq() === 0) return false;
+    const R = new THREE.Quaternion().setFromEuler(new THREE.Euler(...part.rotation.map(THREE.MathUtils.degToRad)));
+    const dParent = local.clone().applyQuaternion(R); // the same move, in the parent's frame
+    part.position = part.position.map((v, i) => v + dParent.getComponent(i));
+    part.offset = part.offset.map((v, i) => v - local.getComponent(i));
+    for (const c of this.childrenOf(id)) {
+      c.position = c.position.map((v, i) => v - local.getComponent(i));
+      this.apply(c);
+    }
+    // Keep animations intact: the part's own position keys live in the parent's frame, the children's in ours.
+    for (const clip of this.animations) {
+      const own = clip.tracks[id]?.position;
+      if (own) for (const k of own) k.v = k.v.map((v, i) => v + dParent.getComponent(i));
+      for (const c of this.childrenOf(id)) {
+        const keys = clip.tracks[c.id]?.position;
+        if (keys) for (const k of keys) k.v = k.v.map((v, i) => v - local.getComponent(i));
+      }
+    }
+    this.apply(part);
+    this.emit('update', part);
+    return true;
+  }
+
+  /** Rounds a part's (and its children's) stored transforms to 3 decimals after a drag. */
+  tidy(part) {
+    part.position = round(part.position);
+    part.offset = round(part.offset);
+    for (const c of this.childrenOf(part.id)) { c.position = round(c.position); this.apply(c); }
+    this.apply(part);
+    this.emit('update', part);
+  }
+
   /** Looks a part up by name (first match). */
   byName(name) {
     for (const p of this.parts.values()) if (p.name === name) return p;

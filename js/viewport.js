@@ -70,20 +70,27 @@ export class Viewport {
       const parts = this.transformTargets();
       if (e.value) {
         this._dragged = true;
-        if (this.selection.length > 1) this._beginMulti(parts);
+        if (this.mode === 'anchor') this._beginAnchor(parts[0]);
+        else if (this.selection.length > 1) this._beginMulti(parts);
       }
       this.dragHandlers.forEach(fn => fn(!!e.value, parts));
       if (!e.value) {
         this._multiStart = null;
+        this._anchorStart = null;
         if (parts.length) this.transformEndHandlers.forEach(fn => fn(parts, this.mode));
-        if (this.selection.length > 1) this._attachGizmo(); // re-centre the pivot
+        if (this.selection.length > 1 && this.mode !== 'anchor') this._attachGizmo(); // re-centre the pivot
       }
     });
-    this.gizmo.addEventListener('objectChange', () => { if (this._multiStart) this._applyMulti(); });
+    this.gizmo.addEventListener('objectChange', () => {
+      if (this._multiStart) this._applyMulti();
+      else if (this._anchorStart) this._applyAnchor();
+    });
     this.scene.add(this.gizmo);
     this.setSnap(true);
 
     this.outlines = [];
+    this.anchors = []; // small markers at the pivot of every selected part
+    this._anchorGeometry = new THREE.OctahedronGeometry(1);
 
     this.raycaster = new THREE.Raycaster();
     this._setupPicking();
@@ -221,15 +228,17 @@ export class Viewport {
     this._rebuildOutlines();
   }
 
+  /** 'translate' | 'rotate' | 'scale' | 'anchor' (anchor drags the pivot point; the shape stays). */
   setMode(mode) {
     this.mode = mode;
-    this.gizmo.setMode(mode);
+    this.gizmo.setMode(mode === 'anchor' ? 'translate' : mode);
     this._attachGizmo();
   }
 
   /** Selected parts that have no selected ancestor: moving those moves the whole selection once. */
   transformTargets() {
     const sel = this.selection;
+    if (this.mode === 'anchor') return this.selected ? [this.selected] : [];
     if (sel.length <= 1) return sel.filter(p => !(this.mode === 'scale' && isBone(p)));
     const ids = new Set(sel.map(p => p.id));
     return sel.filter(p => {
@@ -242,6 +251,13 @@ export class Viewport {
   _attachGizmo() {
     const sel = this.selection;
     if (!sel.length) { this.gizmo.detach(); return; }
+
+    if (this.mode === 'anchor') {
+      // The anchor tool edits one part at a time: the active one.
+      this.gizmo.attach(this.selected.pivot);
+      this.gizmo.setSpace('world');
+      return;
+    }
 
     if (sel.length === 1) {
       const p = sel[0];
@@ -310,9 +326,35 @@ export class Viewport {
     }
   }
 
+  /** Anchor drag: the pivot moves with the gizmo; shape, children and keys are compensated live. */
+  _beginAnchor(part) {
+    if (!part) return;
+    this._anchorStart = { part, last: part.pivot.position.clone() };
+  }
+
+  _applyAnchor() {
+    const s = this._anchorStart;
+    const part = s.part;
+    const dParent = part.pivot.position.clone().sub(s.last);
+    if (dParent.lengthSq() === 0) return;
+    // The gizmo moved the pivot in the parent's frame; express that step in the part's own frame.
+    const p = dParent.applyQuaternion(new THREE.Quaternion().setFromEuler(part.pivot.rotation).invert());
+    this.model.moveAnchor(part.id, p.toArray());
+    s.last.copy(part.pivot.position);
+  }
+
   _rebuildOutlines() {
     for (const o of this.outlines) { this.scene.remove(o); o.geometry.dispose(); o.material.dispose(); }
     this.outlines = [];
+    for (const a of this.anchors) { this.scene.remove(a); a.material.dispose(); }
+    this.anchors = [];
+    for (const p of this.selection) {
+      const a = new THREE.Mesh(this._anchorGeometry, new THREE.MeshBasicMaterial({ color: p === this.selected ? ACTIVE_COLOR : SELECTED_COLOR, depthTest: false, transparent: true, opacity: 0.95 }));
+      a.renderOrder = 1001;
+      a.userData.part = p;
+      this.scene.add(a);
+      this.anchors.push(a);
+    }
     const active = this.selected;
     for (const p of this.selection) {
       const o = new THREE.BoxHelper(p.mesh, p === active ? ACTIVE_COLOR : SELECTED_COLOR);
@@ -391,6 +433,11 @@ export class Viewport {
     for (const fn of this.frameHandlers) fn(dt);
     this.orbit.update();
     for (const o of this.outlines) o.update();
+    for (const a of this.anchors) {
+      a.userData.part.pivot.getWorldPosition(a.position);
+      const d = a.position.distanceTo(this.camera.position);
+      a.scale.setScalar(d * (this.mode === 'anchor' ? 0.014 : 0.009)); // constant size on screen
+    }
     this.renderer.render(this.scene, this.camera);
   }
 

@@ -40,7 +40,13 @@ Your work autosaves in the browser. Use **Save** to keep a `.json` project file 
 - **Bones** — the skeleton. A bone is a joint with a pivot and a tip; parts attached to a bone move
   with it. Bones draw as blue x-ray markers (toggle with **Bones** in the toolbar), are picked first
   when visible, and export as real glTF joints.
-- **Move / Rotate / Size** — a 3D gizmo (W / E / R) with snapping, numeric fields, and rotation sliders.
+- **Move / Rotate / Size / Anchor** — an icon palette in the top-left corner of the viewport (W / E / R / A)
+  drives a 3D gizmo with snapping; numeric fields and rotation sliders are in the properties panel.
+- **Anchor point** — every part rotates and scales around its anchor (the pivot), shown as a small
+  diamond on selected parts. The Anchor tool drags the anchor while the shape, its children and its
+  keyframes stay where they are; the Centre / Bottom / Top buttons snap it to the shape. Put a prop's
+  anchor at its bottom and it stands on the ground; put a limb's anchor at the joint and it swings from
+  there. (The anchor tool works on the rest pose: pick "Rest pose" in the clip menu while animating.)
 - **Multi-selection** — Shift+click or Ctrl+click adds parts to the selection, Shift+drag in the viewport
   box-selects, Ctrl+A selects everything, Shift+click in the parts list selects a range, and **Select
   children** grabs a whole subtree. The gizmo then moves, rotates or resizes the group around its centre;
@@ -162,6 +168,7 @@ geometry only.
 | W / G | Move tool |
 | E | Rotate tool |
 | R | Size tool |
+| A | Anchor tool (drag the pivot, the shape stays) |
 | Shift+click / Ctrl+click | Add to or remove from the selection |
 | Shift+drag | Box-select |
 | Ctrl+A | Select all |
@@ -210,7 +217,8 @@ of animation clips.
 
 - `position` / `rotation` (degrees) are the part's pivot, relative to its parent.
 - `size` is the shape's dimensions in metres (for a bone, only the marker thickness is used).
-- `offset` shifts the shape away from the pivot; for a bone it is the tip.
+- `offset` shifts the shape away from the anchor (pivot); for a bone it is the tip. The Anchor tool
+  edits `position` and `offset` together so the shape does not move.
 - `recipe` only appears on a character root and is what the Character panel edits.
 - Each track is keyed by part id; keys hold a frame `f` and a value `v` for `position`, `rotation`
   (degrees) or `size`.

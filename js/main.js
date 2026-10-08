@@ -93,9 +93,20 @@ const app = {
   },
 
   setMode(mode) {
-    if (!['translate', 'rotate', 'scale'].includes(mode)) return;
+    if (!['translate', 'rotate', 'scale', 'anchor'].includes(mode)) return;
+    if (mode === 'anchor' && animator.clip) { ui.notice('The anchor tool edits the rest pose: pick "Rest pose" in the clip menu first.'); return; }
     viewport.setMode(mode);
     ui.refreshToolbar();
+  },
+
+  /** Moves the active part's anchor to the centre, bottom or top of its shape. */
+  anchorPreset(kind) {
+    const p = app.selected();
+    if (!p || animator.clip || p.type === 'bone') return;
+    const [ox, oy, oz] = p.offset;
+    const h = p.size[1] / 2;
+    const target = kind === 'bottom' ? [ox, oy - h, oz] : kind === 'top' ? [ox, oy + h, oz] : [ox, oy, oz];
+    if (model.moveAnchor(p.id, target)) { model.tidy(p); app.commit(); }
   },
 
   // ----- transforms: rest pose, or keyframes when a clip is active -----
@@ -339,6 +350,11 @@ viewport.onPick((part, e) => {
 viewport.onMarquee(parts => app.selectMany([...app.selectedIds(), ...parts.map(p => p.id)]));
 viewport.onDrag((dragging, parts) => { animator.holdParts = dragging ? new Set(parts) : new Set(); });
 viewport.onTransformEnd((parts, mode) => {
+  if (mode === 'anchor') {
+    for (const part of parts) { model.readBack(part); model.tidy(part); }
+    app.commit();
+    return;
+  }
   for (const part of parts) {
     if (animator.clip) {
       const t = model.readTransform(part);
@@ -353,6 +369,7 @@ viewport.onTransformEnd((parts, mode) => {
   app.commit();
 });
 viewport.onFrame(dt => animator.tick(dt));
+animator.onChange(kind => { if (kind === 'clip' && animator.clip && viewport.mode === 'anchor') app.setMode('translate'); });
 
 // ----- keyboard -----
 
@@ -379,6 +396,7 @@ window.addEventListener('keydown', e => {
     case 'w': case 'g': app.setMode('translate'); break;
     case 'e': app.setMode('rotate'); break;
     case 'r': app.setMode('scale'); break;
+    case 'a': app.setMode('anchor'); break;
     case 'f': viewport.focus(); break;
     case 'escape': app.select(null); break;
     case 'delete': case 'backspace': e.preventDefault(); app.deleteSelected(); break;
