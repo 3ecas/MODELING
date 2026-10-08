@@ -37,8 +37,9 @@ Your work autosaves in the browser. Use **Save** to keep a `.json` project file 
 
 - **Menus** — File (new, open, save, exports, preview), Add (shapes, bones, folders), Kit (characters)
   and Help (shortcuts) sit in the top bar, with the model name on the right.
-- **Objects** — the list on the left. Folders hold other objects and fold with the ▾ toggle; select
-  several objects and press Ctrl+G to put them in a new folder.
+- **Objects** — the list on the left. The eye on each row hides or shows the object. Folders hold
+  other objects and fold with the ▾ toggle; select several objects and press Ctrl+G to put them in a
+  new folder.
 - **Viewport corners** — tools top-left, views and display toggles top-right, undo / redo and the
   status line bottom-left.
 - **Properties** — on the right: object, transform, shape and colour, with an inline After Effects
@@ -53,8 +54,10 @@ Your work autosaves in the browser. Use **Save** to keep a `.json` project file 
 - **Bones** — the skeleton. A bone is a joint with a pivot and a tip; parts attached to a bone move
   with it. Bones draw as blue x-ray markers (toggle with **Bones** in the toolbar), are picked first
   when visible, and export as real glTF joints.
-- **Move / Rotate / Size / Anchor** — an icon palette in the top-left corner of the viewport (W / E / R / A)
-  drives a 3D gizmo with snapping; numeric fields and rotation sliders are in the properties panel.
+- **Select / Move / Rotate / Size / Anchor** — an icon palette in the top-left corner of the viewport
+  (V / W / E / R / A). The Select tool has no handles: click to select, drag a box to select everything
+  inside it, Shift+drag to add, Alt+drag to orbit. The other tools drive a 3D gizmo with snapping;
+  numeric fields and rotation sliders are in the properties panel.
 - **Anchor point** — every part rotates and scales around its anchor (the pivot), shown as a small
   diamond on selected parts. The Anchor tool drags the anchor while the shape, its children and its
   keyframes stay where they are; the Centre / Bottom / Top buttons snap it to the shape. Put a prop's
@@ -64,9 +67,12 @@ Your work autosaves in the browser. Use **Save** to keep a `.json` project file 
   box-selects, Ctrl+A selects everything, Shift+click in the parts list selects a range, and **Select
   children** grabs a whole subtree. The gizmo then moves, rotates or resizes the group around its centre;
   colour, parent, visibility, duplicate, delete and keyframes apply to every selected part.
-- **Parenting and folders** — any object can be attached to any other object, bone or folder. A
-  parent's size never stretches its children. Folders are empty transform nodes: move or rotate the
-  folder and everything inside follows; they export as plain nodes.
+- **Linking (parenting) and folders** — any object can follow any other object, bone or folder: move
+  or rotate the parent and the children follow. Link by dragging the link handle of a row in the
+  Objects list onto its new parent (drop on empty space to unlink), by selecting the children, then
+  Shift+clicking the parent and pressing Ctrl+P, or with the Parent field. Selected objects show
+  light-blue connector lines to their parent and children in the viewport. A parent's size never
+  stretches its children. Folders are empty transform nodes that export as plain nodes.
 - **Flat colours** — a 32-colour palette, or any colour.
 - **Humanoid kit** — one click adds a rigged character: 16 bones (`hips, spine, neck, head, arm_L,
   forearm_L, hand_L, …, thigh_R, shin_R, foot_R`) with body parts attached. **Random NPC** rolls
@@ -179,6 +185,7 @@ geometry only.
 
 | Key | Action |
 | --- | --- |
+| V | Select tool (drag a box to select) |
 | W / G | Move tool |
 | E | Rotate tool |
 | R | Size tool |
@@ -187,6 +194,7 @@ geometry only.
 | Shift+drag | Box-select |
 | Ctrl+A | Select all |
 | Ctrl+G | Folder from selection |
+| Ctrl+P | Link the selection to the active object |
 | Ctrl+D | Duplicate |
 | Delete / Backspace | Delete |
 | Ctrl+Z / Ctrl+Y | Undo / Redo |
@@ -199,7 +207,8 @@ geometry only.
 | ← / → | Step one frame (Shift: five) |
 | Home / End | First / last frame |
 
-Left-drag orbits, right-drag pans, wheel zooms. Click a part or bone to select it. With several parts
+Right-drag orbits, left-drag pans, wheel zooms (untick "R-orbit" in the view corner for the other way
+round). Click an object or bone to select it. With several parts
 selected, the last one clicked is the active part: the properties fields show its values, while colour,
 parent and visibility changes go to the whole selection. A part whose parent is also selected moves
 with its parent rather than twice.

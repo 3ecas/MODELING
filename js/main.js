@@ -97,6 +97,31 @@ const app = {
     return folder;
   },
 
+  /** Links every selected object to the active one (the last one clicked), keeping world transforms (Ctrl+P). */
+  linkSelection() {
+    const active = app.selected();
+    const ids = app.selectedIds().filter(id => id !== active?.id);
+    if (!active || !ids.length) { ui.notice('Select the children first, then Shift+click the parent, then Ctrl+P.'); return false; }
+    let linked = 0;
+    model.batch(() => { for (const id of ids) if (model.setParent(id, active.id)) linked++; });
+    if (linked) { app.commit(); ui.notice(`${linked} object${linked > 1 ? 's' : ''} now follow${linked > 1 ? '' : 's'} "${active.name}".`); }
+    else ui.notice('Cannot link: that would make a loop.');
+    return linked > 0;
+  },
+
+  /** Re-parents one object, keeping its world transform (used by the drag handle in the Objects list). */
+  link(childId, parentId) {
+    if (childId === parentId) return false;
+    if (!model.setParent(childId, parentId)) { ui.notice('Cannot link: that would make a loop.'); return false; }
+    app.commit();
+    return true;
+  },
+
+  setMouseSwap(on) {
+    viewport.setMouseSwap(on);
+    try { localStorage.setItem('blocky.mouseSwap', on ? '1' : '0'); } catch { /* ignore */ }
+  },
+
   /** Adds the descendants of every selected part to the selection. */
   selectChildren() {
     const ids = [...selectedIds];
@@ -113,7 +138,7 @@ const app = {
   },
 
   setMode(mode) {
-    if (!['translate', 'rotate', 'scale', 'anchor'].includes(mode)) return;
+    if (!['select', 'translate', 'rotate', 'scale', 'anchor'].includes(mode)) return;
     if (mode === 'anchor' && animator.clip) { ui.notice('The anchor tool edits the rest pose: pick "Rest pose" in the clip menu first.'); return; }
     viewport.setMode(mode);
     ui.refreshToolbar();
@@ -367,7 +392,11 @@ viewport.onPick((part, e) => {
   if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) { if (part) app.toggleSelect(part.id); }
   else app.select(part ? part.id : null);
 });
-viewport.onMarquee(parts => app.selectMany([...app.selectedIds(), ...parts.map(p => p.id)]));
+viewport.onMarquee((parts, e) => {
+  const ids = parts.map(p => p.id);
+  if (e && e.shiftKey) app.selectMany([...app.selectedIds(), ...ids]); // Shift adds to the selection
+  else app.selectMany(ids);                                            // a plain box (Select tool) replaces it
+});
 viewport.onDrag((dragging, parts) => { animator.holdParts = dragging ? new Set(parts) : new Set(); });
 viewport.onTransformEnd((parts, mode) => {
   if (mode === 'anchor') {
@@ -408,12 +437,14 @@ window.addEventListener('keydown', e => {
   if (ctrl && k === 'd') { e.preventDefault(); app.duplicate(); return; }
   if (ctrl && k === 'a') { e.preventDefault(); app.selectAll(); return; }
   if (ctrl && k === 'g') { e.preventDefault(); app.groupSelection(); return; }
+  if (ctrl && k === 'p') { e.preventDefault(); app.linkSelection(); return; }
   if (ctrl && k === 's') { e.preventDefault(); app.save(); return; }
   if (ctrl) return;
 
   const clip = animator.clip;
   const step = e.shiftKey ? 5 : 1;
   switch (k) {
+    case 'v': app.setMode('select'); break;
     case 'w': case 'g': app.setMode('translate'); break;
     case 'e': app.setMode('rotate'); break;
     case 'r': app.setMode('scale'); break;
@@ -438,6 +469,7 @@ window.addEventListener('keydown', e => {
 // ----- boot -----
 
 const ui = initUI(app);
+try { if (localStorage.getItem('blocky.mouseSwap') === '0') { viewport.setMouseSwap(false); document.getElementById('chk-mouse').checked = false; } } catch { /* ignore */ }
 app.characterPanel = initCharacterPanel(app);
 app.timeline = initTimeline(app);
 
