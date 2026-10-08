@@ -51,6 +51,7 @@ export class Viewport {
     this.scene.add(this.grid);
 
     this.orbit = new OrbitControls(this.camera, canvas);
+    this.setMouseSwap(true); // right-drag orbits, left-drag pans (left stays free for selecting and the gizmo)
     this.orbit.target.set(0, 0.9, 0);
     this.orbit.enableDamping = true;
     this.orbit.dampingFactor = 0.12;
@@ -91,6 +92,15 @@ export class Viewport {
     this.outlines = [];
     this.anchors = []; // small markers at the pivot of every selected part
     this._anchorGeometry = new THREE.OctahedronGeometry(1);
+
+    // Connector lines: selected object -> its parent, and -> each of its children.
+    this.links = new THREE.LineSegments(
+      new THREE.BufferGeometry(),
+      new THREE.LineBasicMaterial({ color: 0x8ad7ff, depthTest: false, transparent: true, opacity: 0.85 }),
+    );
+    this.links.renderOrder = 1002;
+    this.links.frustumCulled = false;
+    this.scene.add(this.links);
 
     this.raycaster = new THREE.Raycaster();
     this._setupPicking();
@@ -143,8 +153,11 @@ export class Viewport {
     let start = null, active = false;
 
     // Capture phase: runs before OrbitControls sees the event, so we can keep it from panning.
+    // Shift+drag box-selects in every tool; in the Select tool a plain drag does too (Alt+drag orbits).
     this.canvas.addEventListener('pointerdown', e => {
-      if (e.button !== 0 || !e.shiftKey || this.gizmo.axis || this.gizmo.dragging) return;
+      if (e.button !== 0 || this.gizmo.axis || this.gizmo.dragging) return;
+      const wants = e.shiftKey || (this.mode === 'select' && !e.altKey);
+      if (!wants) return;
       start = [e.clientX, e.clientY];
       active = false;
       this.orbit.enabled = false;
@@ -228,16 +241,17 @@ export class Viewport {
     this._rebuildOutlines();
   }
 
-  /** 'translate' | 'rotate' | 'scale' | 'anchor' (anchor drags the pivot point; the shape stays). */
+  /** 'select' | 'translate' | 'rotate' | 'scale' | 'anchor' (anchor drags the pivot point; the shape stays). */
   setMode(mode) {
     this.mode = mode;
-    this.gizmo.setMode(mode === 'anchor' ? 'translate' : mode);
+    this.gizmo.setMode(mode === 'anchor' || mode === 'select' ? 'translate' : mode);
     this._attachGizmo();
   }
 
   /** Selected parts that have no selected ancestor: moving those moves the whole selection once. */
   transformTargets() {
     const sel = this.selection;
+    if (this.mode === 'select') return [];
     if (this.mode === 'anchor') return this.selected ? [this.selected] : [];
     if (sel.length <= 1) return sel.filter(p => !(this.mode === 'scale' && !hasMesh(p)));
     const ids = new Set(sel.map(p => p.id));
@@ -250,7 +264,7 @@ export class Viewport {
 
   _attachGizmo() {
     const sel = this.selection;
-    if (!sel.length) { this.gizmo.detach(); return; }
+    if (!sel.length || this.mode === 'select') { this.gizmo.detach(); return; } // the Select tool has no handles
 
     if (this.mode === 'anchor') {
       // The anchor tool edits one part at a time: the active one.
@@ -418,6 +432,34 @@ export class Viewport {
   setGrid(on) { this.grid.visible = !!on; }
   setBones(on) { this.model.setShowBones(on); }
 
+  /** true: right-drag orbits and left-drag pans. false: the Three.js default (left orbits, right pans). */
+  setMouseSwap(on) {
+    this.mouseSwapped = !!on;
+    this.orbit.mouseButtons = on
+      ? { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
+      : { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+  }
+
+  _updateLinks() {
+    const pts = [];
+    const a = new THREE.Vector3(), b = new THREE.Vector3();
+    for (const p of this.selection) {
+      p.pivot.getWorldPosition(a);
+      const parent = p.parent != null ? this.model.parts.get(p.parent) : null;
+      if (parent) { parent.pivot.getWorldPosition(b); pts.push(a.x, a.y, a.z, b.x, b.y, b.z); }
+      for (const c of this.model.childrenOf(p.id)) { c.pivot.getWorldPosition(b); pts.push(a.x, a.y, a.z, b.x, b.y, b.z); }
+    }
+    const geo = this.links.geometry;
+    const attr = geo.attributes.position;
+    if (!attr || attr.count !== pts.length / 3) {
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    } else {
+      attr.array.set(pts);
+      attr.needsUpdate = true;
+    }
+    this.links.visible = pts.length > 0;
+  }
+
   resize() {
     const el = this.canvas.parentElement;
     const w = Math.max(1, el.clientWidth), h = Math.max(1, el.clientHeight);
@@ -433,6 +475,7 @@ export class Viewport {
     for (const fn of this.frameHandlers) fn(dt);
     this.orbit.update();
     for (const o of this.outlines) o.update();
+    this._updateLinks();
     for (const a of this.anchors) {
       a.userData.part.pivot.getWorldPosition(a.position);
       const d = a.position.distanceTo(this.camera.position);

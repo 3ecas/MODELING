@@ -8,6 +8,9 @@ const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; }
 
 const ICON_FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>';
 const ICON_BONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 18l12-12"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="5" r="2.2"/></svg>';
+const ICON_LINK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.3 1.3"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.3-1.3"/></svg>';
+const ICON_EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+const ICON_EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 6.3A10 10 0 0 1 12 6c6.5 0 10 6 10 6a16 16 0 0 1-3 3.6M6.4 7.7A15 15 0 0 0 2 12s3.5 6 10 6a10 10 0 0 0 3.6-.7"/></svg>';
 
 export function initUI(app) {
   const { model, history, viewport, animator } = app;
@@ -59,6 +62,7 @@ export function initUI(app) {
   $('chk-wire').addEventListener('change', e => model.setWireframe(e.target.checked));
   $('chk-grid').addEventListener('change', e => viewport.setGrid(e.target.checked));
   $('chk-bones').addEventListener('change', e => viewport.setBones(e.target.checked));
+  $('chk-mouse').addEventListener('change', e => app.setMouseSwap(e.target.checked));
 
   $('m-name').addEventListener('change', e => { model.name = e.target.value.trim() || 'untitled'; app.commit(); });
 
@@ -170,6 +174,7 @@ export function initUI(app) {
   $('btn-delete').addEventListener('click', () => app.deleteSelected());
   $('btn-select-children').addEventListener('click', () => app.selectChildren());
   $('btn-group-sel').addEventListener('click', () => app.groupSelection());
+  $('btn-link').addEventListener('click', () => app.linkSelection());
   document.querySelectorAll('[data-anchor]').forEach(b => b.addEventListener('click', () => app.anchorPreset(b.dataset.anchor)));
   form.addEventListener('submit', e => e.preventDefault());
 
@@ -234,6 +239,29 @@ export function initUI(app) {
   // ----- objects list -----
   const collapsed = new Set(); // ids of folded objects
 
+  // Pick-whip: drag the link handle of a row onto another row to make that row its parent;
+  // drop on the empty part of the list to unlink.
+  let whip = null;
+  const rowAt = (x, y) => document.elementFromPoint(x, y)?.closest('#part-list li') || null;
+  function whipMove(e) {
+    if (!whip) return;
+    $('part-list').querySelectorAll('li.drop').forEach(li => li.classList.remove('drop'));
+    const li = rowAt(e.clientX, e.clientY);
+    if (li && Number(li.dataset.id) !== whip.from) li.classList.add('drop');
+    whip.over = li;
+  }
+  function whipEnd(e) {
+    if (!whip) return;
+    const { from } = whip;
+    const li = rowAt(e.clientX, e.clientY);
+    const inList = !!document.elementFromPoint(e.clientX, e.clientY)?.closest('#outliner');
+    whip = null;
+    document.body.classList.remove('whipping');
+    $('part-list').querySelectorAll('li.drop').forEach(x => x.classList.remove('drop'));
+    if (li && Number(li.dataset.id) !== from) app.link(from, Number(li.dataset.id));
+    else if (!li && inList) app.link(from, null);
+  }
+
   function foldedAway(part) {
     let q = part.parent != null ? model.parts.get(part.parent) : null;
     while (q) { if (collapsed.has(q.id)) return true; q = q.parent != null ? model.parts.get(q.parent) : null; }
@@ -250,7 +278,7 @@ export function initUI(app) {
       if (foldedAway(part)) continue;
       const li = document.createElement('li');
       li.dataset.id = part.id;
-      li.style.paddingLeft = `${4 + depth * 14}px`;
+      li.style.paddingLeft = `${4 + depth * 12}px`;
       if (selIds.has(part.id)) li.classList.add('selected');
       if (sel && sel.id === part.id) li.classList.add('active');
       if (!part.visible) li.classList.add('hidden');
@@ -285,6 +313,34 @@ export function initUI(app) {
         li.appendChild(mark);
       }
       li.appendChild(type);
+      const link = document.createElement('button');
+      link.type = 'button';
+      link.className = 'link';
+      link.innerHTML = ICON_LINK;
+      link.title = 'Drag onto another object to make it the parent (drop on empty space to unlink)';
+      link.addEventListener('pointerdown', e => {
+        if (e.button !== 0) return;
+        e.stopPropagation(); e.preventDefault();
+        link.setPointerCapture(e.pointerId);
+        whip = { from: part.id, over: null };
+        document.body.classList.add('whipping');
+      });
+      link.addEventListener('pointermove', whipMove);
+      link.addEventListener('pointerup', whipEnd);
+      link.addEventListener('pointercancel', whipEnd);
+      link.addEventListener('click', e => e.stopPropagation());
+      li.appendChild(link);
+      const eye = document.createElement('button');
+      eye.type = 'button';
+      eye.className = 'eye';
+      eye.innerHTML = part.visible ? ICON_EYE : ICON_EYE_OFF;
+      eye.title = part.visible ? 'Hide' : 'Show';
+      eye.addEventListener('click', e => {
+        e.stopPropagation();
+        model.update(part.id, { visible: !part.visible });
+        app.commit();
+      });
+      li.appendChild(eye);
       li.addEventListener('click', e => {
         if (e.shiftKey) app.selectRange(part.id);
         else if (e.ctrlKey || e.metaKey) app.toggleSelect(part.id);
@@ -304,6 +360,8 @@ export function initUI(app) {
     if (sw) sw.style.background = part.color;
     li.querySelector('.name').textContent = part.name;
     li.classList.toggle('hidden', !part.visible);
+    const eye = li.querySelector('.eye');
+    if (eye) { eye.innerHTML = part.visible ? ICON_EYE : ICON_EYE_OFF; eye.title = part.visible ? 'Hide' : 'Show'; }
   }
 
   function refreshToolbar() {
@@ -340,8 +398,8 @@ export function initUI(app) {
     noticeTimer = setTimeout(() => { el.classList.remove('notice'); refreshStatus(); }, 3000);
   }
 
-  model.onChange(kind => {
-    if (kind === 'update') { refreshProps(); refreshStatus(); const sel = app.selected(); if (sel) updateOutlinerRow(sel); }
+  model.onChange((kind, part) => {
+    if (kind === 'update') { refreshProps(); refreshStatus(); if (part) updateOutlinerRow(part); }
     else refreshAll();
   });
   history.onChange(refreshToolbar);

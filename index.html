@@ -66,11 +66,13 @@
     <div class="menu" id="menu-help">
       <button class="menu-btn" id="btn-help">Help <span class="caret">▾</span></button>
       <div class="menu-list help" hidden>
-        <div class="help-row"><span>Move / Rotate / Size / Anchor</span><span class="kbd">W E R A</span></div>
+        <div class="help-row"><span>Select / Move / Rotate / Size / Anchor</span><span class="kbd">V W E R A</span></div>
+        <div class="help-row"><span>Box-select (Select tool)</span><span class="kbd">drag · Shift adds</span></div>
         <div class="help-row"><span>Add to selection</span><span class="kbd">Shift+click</span></div>
         <div class="help-row"><span>Box-select</span><span class="kbd">Shift+drag</span></div>
         <div class="help-row"><span>Select all / deselect</span><span class="kbd">Ctrl+A / Esc</span></div>
         <div class="help-row"><span>Folder from selection</span><span class="kbd">Ctrl+G</span></div>
+        <div class="help-row"><span>Link selection to the active object</span><span class="kbd">Ctrl+P</span></div>
         <div class="help-row"><span>Duplicate / delete</span><span class="kbd">Ctrl+D / Del</span></div>
         <div class="help-row"><span>Undo / redo</span><span class="kbd">Ctrl+Z / Ctrl+Y</span></div>
         <div class="help-row"><span>Focus on selection</span><span class="kbd">F</span></div>
@@ -78,7 +80,7 @@
         <div class="help-row"><span>Play / pause clip</span><span class="kbd">Space</span></div>
         <div class="help-row"><span>Key selected objects</span><span class="kbd">K</span></div>
         <div class="help-row"><span>Step frames</span><span class="kbd">← → · Shift ×5</span></div>
-        <div class="help-row"><span>Orbit / pan / zoom</span><span class="kbd">drag / right-drag / wheel</span></div>
+        <div class="help-row"><span>Orbit / pan / zoom</span><span class="kbd">right-drag / left-drag / wheel</span></div>
       </div>
     </div>
 
@@ -89,13 +91,16 @@
     <aside id="outliner">
       <div class="panel-title">Objects <span id="part-count" class="muted"></span></div>
       <ul id="part-list"></ul>
-      <div class="hint">Click to select, Shift+click for a range, Ctrl+click to add. Folders hold other objects; the ▾ toggle folds them. ◆ marks objects with keyframes in the current clip.</div>
+      <div class="hint">Click to select, Shift+click for a range, Ctrl+click to add. The eye hides or shows an object; drag the link handle onto another object to make it the parent. Folders hold other objects; the ▾ toggle folds them. ◆ marks objects with keyframes in the current clip.</div>
     </aside>
 
     <section id="viewport">
       <canvas id="canvas"></canvas>
 
       <div id="tools">
+        <button data-mode="select" class="mode" title="Select (V): click to select, drag a box to select everything inside, Shift adds. Right-drag orbits." aria-label="Select">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-6 1.5L16 20l-3 1.5-3-6.5L5 19z"/></svg>
+        </button>
         <button data-mode="translate" class="mode active" title="Move (W)" aria-label="Move">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/><path d="M9 5l3-3 3 3M9 19l3 3 3-3M5 9l-3 3 3 3M19 9l3 3-3 3"/></svg>
         </button>
@@ -123,6 +128,7 @@
           <label class="check"><input id="chk-wire" type="checkbox" /> Wire</label>
           <label class="check"><input id="chk-grid" type="checkbox" checked /> Grid</label>
           <label class="check" title="Show bone markers (x-ray). Hide them to click body parts behind bones."><input id="chk-bones" type="checkbox" checked /> Bones</label>
+          <label class="check" title="Checked: right-drag orbits and left-drag pans. Unchecked: left-drag orbits, right-drag pans."><input id="chk-mouse" type="checkbox" checked /> R-orbit</label>
         </div>
       </div>
 
@@ -191,6 +197,7 @@
         <div class="actions">
           <button type="button" id="btn-select-children" title="Add everything below the selected objects to the selection">Select children</button>
           <button type="button" id="btn-group-sel" title="Put the selected objects into a new folder (Ctrl+G)">Group into folder</button>
+          <button type="button" id="btn-link" title="Make the selected objects follow the active one (the last one clicked): Ctrl+P">Link to active</button>
         </div>
       </form>
 
