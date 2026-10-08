@@ -144,6 +144,7 @@ export function initUI(app) {
   $('btn-mirror').addEventListener('click', () => app.duplicate({ mirrorX: true }));
   $('btn-delete').addEventListener('click', () => app.deleteSelected());
   $('btn-select-children').addEventListener('click', () => app.selectChildren());
+  document.querySelectorAll('[data-anchor]').forEach(b => b.addEventListener('click', () => app.anchorPreset(b.dataset.anchor)));
   form.addEventListener('submit', e => e.preventDefault());
 
   // ----- refreshers -----
@@ -180,7 +181,8 @@ export function initUI(app) {
     const bone = isBone(p);
     $('sec-size').textContent = bone ? 'Marker thickness' : 'Size';
     $('p-sy').hidden = bone; $('p-sz').hidden = bone;
-    $('sec-offset').firstChild.textContent = bone ? 'Tip (where the bone points) ' : 'Pivot offset ';
+    $('sec-offset').firstChild.textContent = bone ? 'Tip (where the bone points) ' : 'Shape offset from anchor ';
+    $('row-anchor').hidden = bone;
     $('row-sides').hidden = !PART_TYPES[p.type].hasSides;
     $('p-sides').value = p.sides || '';
     $('p-sides-range').value = p.sides || 3;
@@ -248,6 +250,7 @@ export function initUI(app) {
   }
 
   function refreshStatus() {
+    if ($('status').classList.contains('notice')) return;
     const p = app.selected();
     const tris = Math.round(viewport.triangleCount());
     const n = app.selectedIds().length;
@@ -260,6 +263,16 @@ export function initUI(app) {
   }
 
   function refreshAll() { refreshOutliner(); refreshProps(); refreshToolbar(); refreshStatus(); }
+
+  let noticeTimer = null;
+  /** Shows a short message in the status bar. */
+  function notice(text) {
+    const el = $('status');
+    el.textContent = text;
+    el.classList.add('notice');
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => { el.classList.remove('notice'); refreshStatus(); }, 3000);
+  }
 
   model.onChange(kind => {
     if (kind === 'update') { refreshProps(); refreshStatus(); const sel = app.selected(); if (sel) updateOutlinerRow(sel); }
@@ -283,7 +296,7 @@ export function initUI(app) {
     li.classList.toggle('hidden', !part.visible);
   }
 
-  return { refreshAll, refreshProps, refreshPose, refreshOutliner, refreshToolbar, refreshStatus };
+  return { refreshAll, refreshProps, refreshPose, refreshOutliner, refreshToolbar, refreshStatus, notice };
 }
 
 function round3(v) { return Math.round(v * 1000) / 1000; }
