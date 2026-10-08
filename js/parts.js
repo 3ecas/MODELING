@@ -13,11 +13,17 @@ export const PART_TYPES = {
   // A bone is a joint of the skeleton: it has no exported geometry, only a pivot and a tip (stored in
   // `offset`). Parts attached to a bone move with it; on export, bones become glTF joints.
   bone:     { label: 'Bone',     hasSides: false, defaultSize: [0.08, 0.08, 0.08], isBone: true, defaultTip: [0, 0.25, 0] },
+  // A folder is an empty transform node that holds other objects (like a group or an "empty").
+  group:    { label: 'Folder',   hasSides: false, defaultSize: [0.1, 0.1, 0.1], isGroup: true },
 };
 
 export const BONE_COLOR = '#8ad7ff';
+export const GROUP_COLOR = '#8b919e';
 
 export const isBone = part => !!(part && PART_TYPES[part.type]?.isBone);
+export const isGroup = part => !!(part && PART_TYPES[part.type]?.isGroup);
+/** True for objects that have a shape (bones and folders have none). */
+export const hasMesh = part => !!part && !isBone(part) && !isGroup(part);
 
 // A compact old-school palette: skin tones, cloth, metals, nature.
 export const PALETTE = [
@@ -51,6 +57,7 @@ function build(type, n) {
     case 'sphere':   g = new THREE.SphereGeometry(0.5, n, Math.max(3, Math.ceil(n / 2))); break;
     case 'wedge':    g = wedgeGeometry(); break;
     case 'bone':     g = boneGeometry(); break;
+    case 'group':    g = new THREE.OctahedronGeometry(0.5); break;
     case 'plane':    g = new THREE.BoxGeometry(1, 1, 1); break;
     case 'box':
     default:         g = new THREE.BoxGeometry(1, 1, 1); break;

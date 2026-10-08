@@ -1,17 +1,44 @@
-// DOM wiring: toolbar, outliner, properties panel (with sliders), palette, status bar.
+// DOM wiring: header menus, objects list (with folders), properties panel, colour picker, corners, status.
 
-import { PART_TYPES, PALETTE, isBone } from './parts.js';
+import { PART_TYPES, PALETTE, isBone, isGroup, hasMesh } from './parts.js';
+import { createColorPicker } from './colorpicker.js';
 
 const $ = id => document.getElementById(id);
 const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 
+const ICON_FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>';
+const ICON_BONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 18l12-12"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="5" r="2.2"/></svg>';
+
 export function initUI(app) {
   const { model, history, viewport, animator } = app;
 
-  // ----- toolbar -----
+  // ----- menus (File, Add, Kit, Help) -----
+  const menus = [...document.querySelectorAll('.menu')];
+  function closeMenus(except) {
+    for (const m of menus) if (m !== except) { m.classList.remove('open'); m.querySelector('.menu-list').hidden = true; }
+  }
+  for (const m of menus) {
+    const btn = m.querySelector('.menu-btn');
+    const list = m.querySelector('.menu-list');
+    if (!btn || !list) continue;
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const open = list.hidden;
+      closeMenus(m);
+      list.hidden = !open;
+      m.classList.toggle('open', open);
+    });
+    // Hovering across the bar switches menus like a desktop app.
+    btn.addEventListener('pointerenter', () => { if (menus.some(x => x !== m && x.classList.contains('open'))) { closeMenus(m); list.hidden = false; m.classList.add('open'); } });
+    list.addEventListener('click', e => { if (e.target.closest('button')) closeMenus(); });
+  }
+  document.addEventListener('click', e => { if (!e.target.closest('.menu')) closeMenus(); });
+  window.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenus(); });
+
   document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => app.addPart(b.dataset.add)));
   document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => app.setMode(b.dataset.mode)));
   document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => viewport.setView(b.dataset.view)));
+  document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => app.export(b.dataset.export)));
 
   $('btn-new').addEventListener('click', () => app.newModel());
   $('btn-open').addEventListener('click', () => $('file-input').click());
@@ -21,11 +48,7 @@ export function initUI(app) {
     if (file) await app.openFile(file);
   });
   $('btn-save').addEventListener('click', () => app.save());
-  const menu = $('export-menu');
-  const menuList = menu.querySelector('.menu-list');
-  $('btn-export').addEventListener('click', e => { e.stopPropagation(); menuList.hidden = !menuList.hidden; });
-  menuList.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => { menuList.hidden = true; app.export(b.dataset.export); }));
-  document.addEventListener('click', e => { if (!menu.contains(e.target)) menuList.hidden = true; });
+  $('btn-group').addEventListener('click', () => app.groupSelection());
   $('btn-humanoid').addEventListener('click', () => app.addHumanoid());
   $('btn-random').addEventListener('click', () => app.addRandomNPC());
   $('btn-undo').addEventListener('click', () => app.undo());
@@ -96,7 +119,8 @@ export function initUI(app) {
     $('p-sides').value = p.sides;
   });
   $('p-sides-range').addEventListener('change', () => app.commit());
-  // Visibility, parent and colour apply to every selected part.
+
+  // Visibility, parent and colour apply to every selected object.
   $('p-visible').addEventListener('change', e => {
     if (!app.selected()) return;
     for (const p of app.selectedParts()) model.update(p.id, { visible: e.target.checked });
@@ -111,19 +135,24 @@ export function initUI(app) {
     app.commit();
   });
 
-  $('p-color').addEventListener('input', e => {
+  function applyColor(hex, commit) {
     if (!app.selected()) return;
-    for (const p of app.selectedParts()) model.update(p.id, { color: e.target.value });
-    $('p-color-hex').value = e.target.value;
+    for (const p of app.selectedParts()) model.update(p.id, { color: hex });
+    $('p-color-hex').value = hex;
+    $('p-swatch').style.background = hex;
+    if (commit) app.commit();
+  }
+  const picker = createColorPicker($('picker'), {
+    onInput: hex => applyColor(hex, false),
+    onChange: () => app.commit(),
   });
-  $('p-color').addEventListener('change', () => app.commit());
   $('p-color-hex').addEventListener('change', e => {
     const p = app.selected(); if (!p) return;
     let v = e.target.value.trim();
     if (/^[0-9a-f]{6}$/i.test(v)) v = '#' + v;
     if (!/^#[0-9a-f]{6}$/i.test(v)) { e.target.value = p.color; return; }
-    for (const q of app.selectedParts()) model.update(q.id, { color: v.toLowerCase() });
-    app.commit();
+    applyColor(v.toLowerCase(), true);
+    picker.set(v);
   });
 
   const palette = $('palette');
@@ -132,11 +161,7 @@ export function initUI(app) {
     sw.className = 'sw';
     sw.style.background = c;
     sw.title = c;
-    sw.addEventListener('click', () => {
-      if (!app.selected()) return;
-      for (const p of app.selectedParts()) model.update(p.id, { color: c });
-      app.commit();
-    });
+    sw.addEventListener('click', () => { applyColor(c, true); picker.set(c); });
     palette.appendChild(sw);
   });
 
@@ -144,6 +169,7 @@ export function initUI(app) {
   $('btn-mirror').addEventListener('click', () => app.duplicate({ mirrorX: true }));
   $('btn-delete').addEventListener('click', () => app.deleteSelected());
   $('btn-select-children').addEventListener('click', () => app.selectChildren());
+  $('btn-group-sel').addEventListener('click', () => app.groupSelection());
   document.querySelectorAll('[data-anchor]').forEach(b => b.addEventListener('click', () => app.anchorPreset(b.dataset.anchor)));
   form.addEventListener('submit', e => e.preventDefault());
 
@@ -174,20 +200,25 @@ export function initUI(app) {
     app.characterPanel?.refresh();
     if (!p) return;
     if (formBusy()) return; // don't clobber typing
+    const bone = isBone(p), folder = isGroup(p), mesh = hasMesh(p);
     $('p-name').value = p.name;
-    $('p-type').textContent = PART_TYPES[p.type].label + (isBone(p) ? ' (joint of the skeleton)' : '');
+    $('p-type').textContent = PART_TYPES[p.type].label + (bone ? ' · joint of the skeleton' : folder ? ' · holds other objects' : '');
     refreshPose();
     offsetFields.forEach((id, i) => { $(id).value = p.offset[i]; });
-    const bone = isBone(p);
-    $('sec-size').textContent = bone ? 'Marker thickness' : 'Size';
+    $('row-size').hidden = folder;
+    $('sec-size').textContent = bone ? 'Thickness' : 'Size';
     $('p-sy').hidden = bone; $('p-sz').hidden = bone;
-    $('sec-offset').firstChild.textContent = bone ? 'Tip (where the bone points) ' : 'Shape offset from anchor ';
-    $('row-anchor').hidden = bone;
+    $('row-offset').hidden = folder;
+    $('sec-offset').textContent = bone ? 'Tip' : 'Offset';
+    $('row-anchor').hidden = !mesh;
+    $('sec-shape').hidden = !PART_TYPES[p.type].hasSides;
     $('row-sides').hidden = !PART_TYPES[p.type].hasSides;
     $('p-sides').value = p.sides || '';
     $('p-sides-range').value = p.sides || 3;
-    $('p-color').value = p.color;
+    $('sec-colour').hidden = folder;
+    if (!picker.dragging) picker.set(p.color);
     $('p-color-hex').value = p.color;
+    $('p-swatch').style.background = p.color;
     $('p-visible').checked = p.visible;
 
     const sel = $('p-parent');
@@ -195,9 +226,18 @@ export function initUI(app) {
     sel.appendChild(new Option('(none)', ''));
     for (const { part, depth } of model.ordered()) {
       if (part.id === p.id || model.isDescendant(part.id, p.id)) continue;
-      sel.appendChild(new Option(`${'  '.repeat(depth)}${part.name}`, String(part.id)));
+      sel.appendChild(new Option(`${'  '.repeat(depth)}${part.name}`, String(part.id)));
     }
     sel.value = p.parent == null ? '' : String(p.parent);
+  }
+
+  // ----- objects list -----
+  const collapsed = new Set(); // ids of folded objects
+
+  function foldedAway(part) {
+    let q = part.parent != null ? model.parts.get(part.parent) : null;
+    while (q) { if (collapsed.has(q.id)) return true; q = q.parent != null ? model.parts.get(q.parent) : null; }
+    return false;
   }
 
   function refreshOutliner() {
@@ -207,14 +247,28 @@ export function initUI(app) {
     const selIds = new Set(app.selectedIds());
     const clip = animator.clip;
     for (const { part, depth } of model.ordered()) {
+      if (foldedAway(part)) continue;
       const li = document.createElement('li');
-      li.style.paddingLeft = `${6 + depth * 14}px`;
+      li.dataset.id = part.id;
+      li.style.paddingLeft = `${4 + depth * 14}px`;
       if (selIds.has(part.id)) li.classList.add('selected');
       if (sel && sel.id === part.id) li.classList.add('active');
       if (!part.visible) li.classList.add('hidden');
-      const sw = document.createElement('span');
-      sw.className = 'swatch';
-      sw.style.background = part.color;
+
+      const tog = document.createElement('span');
+      tog.className = 'tog';
+      const hasKids = model.childrenOf(part.id).length > 0;
+      tog.textContent = hasKids ? (collapsed.has(part.id) ? '▸' : '▾') : '';
+      if (hasKids) {
+        tog.title = collapsed.has(part.id) ? 'Expand' : 'Collapse';
+        tog.addEventListener('click', e => { e.stopPropagation(); if (collapsed.has(part.id)) collapsed.delete(part.id); else collapsed.add(part.id); refreshOutliner(); });
+      }
+
+      let icon;
+      if (isGroup(part)) { icon = document.createElement('span'); icon.className = 'ico'; icon.innerHTML = ICON_FOLDER; }
+      else if (isBone(part)) { icon = document.createElement('span'); icon.className = 'ico'; icon.style.color = 'var(--bone)'; icon.innerHTML = ICON_BONE; }
+      else { icon = document.createElement('span'); icon.className = 'swatch'; icon.style.background = part.color; }
+
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = part.name;
@@ -222,7 +276,7 @@ export function initUI(app) {
       const type = document.createElement('span');
       type.className = 'type' + (isBone(part) ? ' bone' : '');
       type.textContent = PART_TYPES[part.type].label.toLowerCase();
-      li.append(sw, name);
+      li.append(tog, icon, name);
       if (clip && clip.tracks[part.id]) {
         const mark = document.createElement('span');
         mark.className = 'key-mark';
@@ -242,6 +296,16 @@ export function initUI(app) {
     $('part-count').textContent = model.parts.size ? `(${model.parts.size})` : '';
   }
 
+  function updateOutlinerRow(part) {
+    // Cheap refresh of name/colour/visibility for one row.
+    const li = $('part-list').querySelector(`li[data-id="${part.id}"]`);
+    if (!li) return refreshOutliner();
+    const sw = li.querySelector('.swatch');
+    if (sw) sw.style.background = part.color;
+    li.querySelector('.name').textContent = part.name;
+    li.classList.toggle('hidden', !part.visible);
+  }
+
   function refreshToolbar() {
     document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === viewport.mode));
     $('btn-undo').disabled = !history.canUndo;
@@ -257,9 +321,11 @@ export function initUI(app) {
     const sel = n > 1 ? `${n} selected (${p.name})  ·  ` : p ? `${p.name}  ·  ${PART_TYPES[p.type].label}  ·  ` : '';
     const clip = animator.clip;
     const anim = clip ? `  ·  ${clip.name} @ ${Math.round(animator.frame)}/${clip.length}` : '';
-    const bones = [...model.parts.values()].filter(isBone).length;
-    const boneTxt = bones ? `  ·  ${bones} bones` : '';
-    $('status').textContent = `${sel}${model.parts.size - bones} parts${boneTxt}  ·  ${tris} triangles${anim}`;
+    const parts = [...model.parts.values()];
+    const bones = parts.filter(isBone).length;
+    const folders = parts.filter(isGroup).length;
+    const extra = (bones ? `  ·  ${bones} bones` : '') + (folders ? `  ·  ${folders} folders` : '');
+    $('status').textContent = `${sel}${parts.length - bones - folders} objects${extra}  ·  ${tris} triangles${anim}`;
   }
 
   function refreshAll() { refreshOutliner(); refreshProps(); refreshToolbar(); refreshStatus(); }
@@ -284,19 +350,7 @@ export function initUI(app) {
     else refreshAll();
   });
 
-  function updateOutlinerRow(part) {
-    // Cheap refresh of name/colour/visibility for the selected row.
-    const rows = [...$('part-list').children];
-    const ordered = model.ordered();
-    const idx = ordered.findIndex(o => o.part.id === part.id);
-    const li = rows[idx];
-    if (!li) return refreshOutliner();
-    li.children[0].style.background = part.color;
-    li.children[1].textContent = part.name;
-    li.classList.toggle('hidden', !part.visible);
-  }
-
-  return { refreshAll, refreshProps, refreshPose, refreshOutliner, refreshToolbar, refreshStatus, notice };
+  return { refreshAll, refreshProps, refreshPose, refreshOutliner, refreshToolbar, refreshStatus, notice, collapsed };
 }
 
 function round3(v) { return Math.round(v * 1000) / 1000; }

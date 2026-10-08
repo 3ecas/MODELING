@@ -3,7 +3,7 @@
 // Children attach to the pivot, so a parent's size never distorts its children.
 
 import * as THREE from 'three';
-import { PART_TYPES, PALETTE, BONE_COLOR, getGeometry, clampSides, isBone } from './parts.js';
+import { PART_TYPES, PALETTE, BONE_COLOR, GROUP_COLOR, getGeometry, clampSides, isBone, isGroup } from './parts.js';
 import { sanitizeClip } from './animation.js';
 
 export const FORMAT_VERSION = 3;
@@ -50,7 +50,7 @@ export class Model {
       size: vec(data.size, def.defaultSize),
       offset: vec(data.offset, def.isBone ? def.defaultTip : [0, 0, 0]),
       sides: def.hasSides ? clampSides(data.sides ?? def.defaultSides) : 0,
-      color: typeof data.color === 'string' ? data.color : (def.isBone ? BONE_COLOR : PALETTE[0]),
+      color: typeof data.color === 'string' ? data.color : (def.isBone ? BONE_COLOR : def.isGroup ? GROUP_COLOR : PALETTE[0]),
       visible: data.visible !== false,
       parent: data.parent ?? null,
       // Character roots carry the recipe they were generated from (see templates.js).
@@ -63,7 +63,7 @@ export class Model {
     const mesh = new THREE.Mesh(getGeometry(part.type, part.sides), material);
     mesh.name = part.name;
     mesh.userData.partId = id;
-    mesh.castShadow = mesh.receiveShadow = !def.isBone;
+    mesh.castShadow = mesh.receiveShadow = !def.isBone && !def.isGroup;
     if (def.isBone) mesh.renderOrder = 1000; // bones draw on top of the body, like an x-ray armature
 
     const pivot = new THREE.Group();
@@ -193,6 +193,10 @@ export class Model {
       mesh.position.set(0, 0, 0);
       mesh.quaternion.setFromUnitVectors(UP, len > 1e-6 ? tip.divideScalar(len) : UP);
       mesh.visible = this.showBones;
+    } else if (isGroup(part)) {
+      mesh.position.set(0, 0, 0);
+      mesh.quaternion.identity();
+      mesh.visible = false; // a folder is only a transform; the anchor marker shows it when selected
     } else {
       mesh.position.fromArray(part.offset);
       mesh.quaternion.identity();

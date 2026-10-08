@@ -77,6 +77,26 @@ const app = {
     app.selectMany(ids, { active: app.selected()?.id });
   },
 
+  /** Puts the selected objects into a new folder placed at their centre (Ctrl+G). */
+  groupSelection() {
+    const parts = topLevelSelected();
+    if (!parts.length) return null;
+    const parents = new Set(parts.map(p => p.parent));
+    const parent = parents.size === 1 ? parts[0].parent : null;
+    const c = new THREE.Vector3(), v = new THREE.Vector3();
+    for (const p of parts) c.add(p.pivot.getWorldPosition(v));
+    c.divideScalar(parts.length);
+    const folder = model.batch(() => {
+      const f = model.addPart({ type: 'group', position: c.toArray(), parent: null });
+      if (parent != null) model.setParent(f.id, parent);
+      for (const p of parts) model.setParent(p.id, f.id);
+      return f;
+    });
+    app.select(folder.id);
+    app.commit();
+    return folder;
+  },
+
   /** Adds the descendants of every selected part to the selection. */
   selectChildren() {
     const ids = [...selectedIds];
@@ -387,6 +407,7 @@ window.addEventListener('keydown', e => {
   if (ctrl && k === 'y') { e.preventDefault(); app.redo(); return; }
   if (ctrl && k === 'd') { e.preventDefault(); app.duplicate(); return; }
   if (ctrl && k === 'a') { e.preventDefault(); app.selectAll(); return; }
+  if (ctrl && k === 'g') { e.preventDefault(); app.groupSelection(); return; }
   if (ctrl && k === 's') { e.preventDefault(); app.save(); return; }
   if (ctrl) return;
 

@@ -19,71 +19,83 @@
   <header id="toolbar">
     <div class="brand">BLOCKY</div>
 
-    <div class="group">
-      <span class="label">File</span>
-      <button id="btn-new" title="New empty model">New</button>
-      <button id="btn-open" title="Open a .json project">Open</button>
-      <button id="btn-save" title="Save project as .json (Ctrl+S)">Save</button>
-      <div class="menu" id="export-menu">
-        <button id="btn-export" title="Export for game engines and other tools">Export ▾</button>
-        <div class="menu-list" hidden>
-          <button data-export="skinned" title="One skinned mesh per character with a skeleton and all clips. Three.js, Godot, Unity, Unreal, Blender.">GLB · skinned character <span class="muted">game-ready</span></button>
-          <button data-export="skinned-vc" title="Same, but colours stored per vertex so each character is a single draw call. Needs a vertex-colour material in Unity.">GLB · skinned, vertex colours <span class="muted">1 draw call</span></button>
-          <button data-export="parts" title="One node per part, like the editor. Good for editing in Blender.">GLB · separate parts</button>
-          <button data-export="obj" title="Geometry only: no colours, bones or animation.">OBJ · geometry only</button>
-          <div class="menu-sep"></div>
-          <button data-export="preview" title="Opens the example player with this model (skinned export).">Preview in player ↗</button>
-        </div>
+    <div class="menu" id="menu-file">
+      <button class="menu-btn" id="btn-file">File <span class="caret">▾</span></button>
+      <div class="menu-list" hidden>
+        <button id="btn-new">New model</button>
+        <button id="btn-open">Open project…</button>
+        <button id="btn-save">Save project <span class="kbd">Ctrl+S</span></button>
+        <div class="menu-sep"></div>
+        <button data-export="skinned" title="One skinned mesh per character with a skeleton and all clips. Three.js, Godot, Unity, Unreal, Blender.">Export GLB · skinned character <span class="muted">game-ready</span></button>
+        <button data-export="skinned-vc" title="Same, but colours stored per vertex so each character is a single draw call.">Export GLB · skinned, vertex colours</button>
+        <button data-export="parts" title="One node per object, like the editor. Good for editing in Blender.">Export GLB · separate parts</button>
+        <button data-export="obj" title="Geometry only: no colours, bones or animation.">Export OBJ · geometry only</button>
+        <div class="menu-sep"></div>
+        <button data-export="preview" title="Opens the example player with this model.">Preview in player ↗</button>
       </div>
-      <input id="file-input" type="file" accept=".json,application/json" hidden />
     </div>
 
-    <div class="group">
-      <span class="label">Add</span>
-      <button data-add="box">Box</button>
-      <button data-add="cylinder">Cylinder</button>
-      <button data-add="cone">Cone</button>
-      <button data-add="sphere">Sphere</button>
-      <button data-add="wedge">Wedge</button>
-      <button data-add="plane">Plane</button>
-      <button data-add="bone" class="bone" title="Add a bone (a joint of the skeleton). Attach parts to bones; bones export as glTF joints.">Bone</button>
+    <div class="menu" id="menu-add">
+      <button class="menu-btn" id="btn-add">Add <span class="caret">▾</span></button>
+      <div class="menu-list" hidden>
+        <button data-add="box">Box</button>
+        <button data-add="cylinder">Cylinder</button>
+        <button data-add="cone">Cone</button>
+        <button data-add="sphere">Sphere</button>
+        <button data-add="wedge">Wedge</button>
+        <button data-add="plane">Plane</button>
+        <div class="menu-sep"></div>
+        <button data-add="bone" class="bone" title="A joint of the skeleton. Attach objects to bones; bones export as glTF joints.">Bone</button>
+        <button data-add="group" title="An empty folder to organise objects. Moving the folder moves everything inside.">Folder</button>
+        <button id="btn-group" title="Put the selected objects into a new folder (Ctrl+G)">Folder from selection <span class="kbd">Ctrl+G</span></button>
+      </div>
     </div>
 
-    <div class="group">
-      <span class="label">Kit</span>
-      <button id="btn-humanoid" title="Add a low-poly humanoid built from parts">Humanoid</button>
-      <button id="btn-random" title="Add a randomised NPC">Random NPC</button>
+    <div class="menu" id="menu-kit">
+      <button class="menu-btn" id="btn-kit">Kit <span class="caret">▾</span></button>
+      <div class="menu-list" hidden>
+        <button id="btn-humanoid" title="A rigged low-poly character built from objects and bones">Humanoid</button>
+        <button id="btn-random" title="A humanoid with random proportions, colours and extras">Random NPC</button>
+      </div>
     </div>
 
-    <div class="group">
-      <span class="label">Edit</span>
-      <button id="btn-undo" title="Undo (Ctrl+Z)">Undo</button>
-      <button id="btn-redo" title="Redo (Ctrl+Y)">Redo</button>
+    <div class="spacer"></div>
+
+    <label class="model-name">Model <input id="m-name" type="text" /></label>
+
+    <div class="menu" id="menu-help">
+      <button class="menu-btn" id="btn-help">Help <span class="caret">▾</span></button>
+      <div class="menu-list help" hidden>
+        <div class="help-row"><span>Move / Rotate / Size / Anchor</span><span class="kbd">W E R A</span></div>
+        <div class="help-row"><span>Add to selection</span><span class="kbd">Shift+click</span></div>
+        <div class="help-row"><span>Box-select</span><span class="kbd">Shift+drag</span></div>
+        <div class="help-row"><span>Select all / deselect</span><span class="kbd">Ctrl+A / Esc</span></div>
+        <div class="help-row"><span>Folder from selection</span><span class="kbd">Ctrl+G</span></div>
+        <div class="help-row"><span>Duplicate / delete</span><span class="kbd">Ctrl+D / Del</span></div>
+        <div class="help-row"><span>Undo / redo</span><span class="kbd">Ctrl+Z / Ctrl+Y</span></div>
+        <div class="help-row"><span>Focus on selection</span><span class="kbd">F</span></div>
+        <div class="help-row"><span>Front / side / top / persp view</span><span class="kbd">1 3 7 5</span></div>
+        <div class="help-row"><span>Play / pause clip</span><span class="kbd">Space</span></div>
+        <div class="help-row"><span>Key selected objects</span><span class="kbd">K</span></div>
+        <div class="help-row"><span>Step frames</span><span class="kbd">← → · Shift ×5</span></div>
+        <div class="help-row"><span>Orbit / pan / zoom</span><span class="kbd">drag / right-drag / wheel</span></div>
+      </div>
     </div>
 
-    <div class="group">
-      <span class="label">View</span>
-      <button data-view="persp" title="Perspective (5)">Persp</button>
-      <button data-view="front" title="Front (1)">Front</button>
-      <button data-view="side" title="Side (3)">Side</button>
-      <button data-view="top" title="Top (7)">Top</button>
-      <label class="check"><input id="chk-pixel" type="checkbox" /> Pixel</label>
-      <label class="check"><input id="chk-wire" type="checkbox" /> Wire</label>
-      <label class="check"><input id="chk-grid" type="checkbox" checked /> Grid</label>
-      <label class="check" title="Show bone markers (x-ray). Hide them to click body parts behind bones."><input id="chk-bones" type="checkbox" checked /> Bones</label>
-    </div>
+    <input id="file-input" type="file" accept=".json,application/json" hidden />
   </header>
 
   <main id="workspace">
     <aside id="outliner">
-      <div class="panel-title">Parts <span id="part-count" class="muted"></span></div>
+      <div class="panel-title">Objects <span id="part-count" class="muted"></span></div>
       <ul id="part-list"></ul>
-      <div class="hint">Click a part to select it. Shift+click or Ctrl+click adds to the selection, Shift+click here selects a range, Shift+drag in the viewport box-selects, Ctrl+A selects all. Drag the gizmo to move, rotate, or resize everything selected. ◆ marks parts with keyframes in the current clip.</div>
+      <div class="hint">Click to select, Shift+click for a range, Ctrl+click to add. Folders hold other objects; the ▾ toggle folds them. ◆ marks objects with keyframes in the current clip.</div>
     </aside>
 
     <section id="viewport">
       <canvas id="canvas"></canvas>
-      <div id="tools" title="">
+
+      <div id="tools">
         <button data-mode="translate" class="mode active" title="Move (W)" aria-label="Move">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/><path d="M9 5l3-3 3 3M9 19l3 3 3-3M5 9l-3 3 3 3M19 9l3 3-3 3"/></svg>
         </button>
@@ -98,7 +110,32 @@
         </button>
         <label class="check snap" title="Snap moves to 0.05, rotations to 15°, sizes to 0.05"><input id="chk-snap" type="checkbox" checked /> Snap</label>
       </div>
-      <div id="status"></div>
+
+      <div id="view-corner">
+        <div class="views">
+          <button data-view="persp" title="Perspective (5)">Persp</button>
+          <button data-view="front" title="Front (1)">Front</button>
+          <button data-view="side" title="Side (3)">Side</button>
+          <button data-view="top" title="Top (7)">Top</button>
+        </div>
+        <div class="toggles">
+          <label class="check" title="Render at quarter resolution, no smoothing"><input id="chk-pixel" type="checkbox" /> Pixel</label>
+          <label class="check"><input id="chk-wire" type="checkbox" /> Wire</label>
+          <label class="check"><input id="chk-grid" type="checkbox" checked /> Grid</label>
+          <label class="check" title="Show bone markers (x-ray). Hide them to click body parts behind bones."><input id="chk-bones" type="checkbox" checked /> Bones</label>
+        </div>
+      </div>
+
+      <div id="edit-corner">
+        <button id="btn-undo" title="Undo (Ctrl+Z)" aria-label="Undo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+        </button>
+        <button id="btn-redo" title="Redo (Ctrl+Y)" aria-label="Redo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg>
+        </button>
+        <div id="status"></div>
+      </div>
+
       <div id="anim-badge" hidden>ANIMATING · edits create keyframes</div>
     </section>
 
@@ -106,49 +143,45 @@
       <div class="panel-title">Properties</div>
       <div id="props-empty" class="muted">Nothing selected.</div>
       <div id="props-multi" class="multi" hidden></div>
+
       <form id="props" hidden autocomplete="off">
-        <div class="row"><label>Name</label><input id="p-name" type="text" /></div>
-        <div class="row"><label>Type</label><span id="p-type" class="value"></span></div>
-        <div class="row"><label>Parent</label><select id="p-parent"></select></div>
+        <section class="prop-section">
+          <h3>Object</h3>
+          <div class="field"><label>Name</label><input id="p-name" type="text" /></div>
+          <div class="field"><label>Type</label><span id="p-type" class="value"></span></div>
+          <div class="field"><label>Parent</label><select id="p-parent"></select></div>
+          <div class="field"><label>Visible</label><label class="switch"><input id="p-visible" type="checkbox" /><span></span></label></div>
+        </section>
 
-        <div class="section">Position</div>
-        <div class="row xyz">
-          <input id="p-px" type="number" step="0.05" /><input id="p-py" type="number" step="0.05" /><input id="p-pz" type="number" step="0.05" />
-        </div>
-        <div class="section">Rotation (degrees)</div>
-        <div class="row xyz">
-          <input id="p-rx" type="number" step="15" /><input id="p-ry" type="number" step="15" /><input id="p-rz" type="number" step="15" />
-        </div>
-        <div class="row slider"><span class="axis x">X</span><input id="p-rsx" type="range" min="-180" max="180" step="1" /></div>
-        <div class="row slider"><span class="axis y">Y</span><input id="p-rsy" type="range" min="-180" max="180" step="1" /></div>
-        <div class="row slider"><span class="axis z">Z</span><input id="p-rsz" type="range" min="-180" max="180" step="1" /></div>
-        <div class="section" id="sec-size">Size</div>
-        <div class="row xyz">
-          <input id="p-sx" type="number" step="0.05" min="0.01" /><input id="p-sy" type="number" step="0.05" min="0.01" /><input id="p-sz" type="number" step="0.05" min="0.01" />
-        </div>
-        <div class="section" id="sec-offset">Pivot offset <span class="muted" title="Shifts the shape away from its pivot point. Use it so limbs rotate from the joint. For a bone this is the tip.">?</span></div>
-        <div class="row xyz">
-          <input id="p-ox" type="number" step="0.05" /><input id="p-oy" type="number" step="0.05" /><input id="p-oz" type="number" step="0.05" />
-        </div>
-        <div class="row" id="row-anchor">
-          <label title="Where the part rotates and scales from. Drag it with the Anchor tool, or snap it to the shape.">Anchor</label>
-          <div class="btn-row">
-            <button type="button" data-anchor="center" title="Put the anchor at the centre of the shape">Centre</button>
-            <button type="button" data-anchor="bottom" title="Put the anchor at the bottom of the shape (good for props standing on the ground)">Bottom</button>
-            <button type="button" data-anchor="top" title="Put the anchor at the top of the shape (good for things that hang)">Top</button>
+        <section class="prop-section">
+          <h3>Transform</h3>
+          <div class="xyz head"><span></span><span class="ax x">X</span><span class="ax y">Y</span><span class="ax z">Z</span></div>
+          <div class="xyz"><label>Position</label><input id="p-px" type="number" step="0.05" /><input id="p-py" type="number" step="0.05" /><input id="p-pz" type="number" step="0.05" /></div>
+          <div class="xyz"><label>Rotation</label><input id="p-rx" type="number" step="15" /><input id="p-ry" type="number" step="15" /><input id="p-rz" type="number" step="15" /></div>
+          <div class="xyz sliders"><span></span><input id="p-rsx" type="range" min="-180" max="180" step="1" /><input id="p-rsy" type="range" min="-180" max="180" step="1" /><input id="p-rsz" type="range" min="-180" max="180" step="1" /></div>
+          <div class="xyz" id="row-size"><label id="sec-size">Size</label><input id="p-sx" type="number" step="0.05" min="0.01" /><input id="p-sy" type="number" step="0.05" min="0.01" /><input id="p-sz" type="number" step="0.05" min="0.01" /></div>
+          <div class="xyz" id="row-offset"><label id="sec-offset" title="Where the shape sits relative to its anchor. For a bone this is the tip.">Offset</label><input id="p-ox" type="number" step="0.05" /><input id="p-oy" type="number" step="0.05" /><input id="p-oz" type="number" step="0.05" /></div>
+          <div class="field" id="row-anchor">
+            <label title="Where the object rotates and scales from. Drag it with the Anchor tool, or snap it to the shape.">Anchor</label>
+            <div class="btn-row">
+              <button type="button" data-anchor="center" title="Put the anchor at the centre of the shape">Centre</button>
+              <button type="button" data-anchor="bottom" title="Put the anchor at the bottom of the shape">Bottom</button>
+              <button type="button" data-anchor="top" title="Put the anchor at the top of the shape">Top</button>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div id="row-sides">
-          <div class="row"><label>Sides</label><input id="p-sides" type="number" min="3" max="32" step="1" /></div>
-          <div class="row slider"><span class="axis"></span><input id="p-sides-range" type="range" min="3" max="32" step="1" /></div>
-        </div>
+        <section class="prop-section" id="sec-shape">
+          <h3>Shape</h3>
+          <div class="field" id="row-sides"><label>Sides</label><input id="p-sides" type="number" min="3" max="32" step="1" class="short" /><input id="p-sides-range" type="range" min="3" max="32" step="1" /></div>
+        </section>
 
-        <div class="section">Colour</div>
-        <div class="row"><input id="p-color" type="color" /><input id="p-color-hex" type="text" class="hex" maxlength="7" /></div>
-        <div id="palette"></div>
-
-        <div class="row"><label class="check"><input id="p-visible" type="checkbox" /> Visible</label></div>
+        <section class="prop-section" id="sec-colour">
+          <h3>Colour</h3>
+          <div id="picker"></div>
+          <div class="field hexrow"><span id="p-swatch" class="swatch-big"></span><input id="p-color-hex" type="text" class="hex" maxlength="7" spellcheck="false" /></div>
+          <div id="palette"></div>
+        </section>
 
         <div class="actions">
           <button type="button" id="btn-duplicate" title="Duplicate the selection (Ctrl+D)">Duplicate</button>
@@ -156,60 +189,56 @@
           <button type="button" id="btn-delete" class="danger" title="Delete the selection (Del)">Delete</button>
         </div>
         <div class="actions">
-          <button type="button" id="btn-select-children" title="Add everything attached below the selected parts to the selection">Select children</button>
+          <button type="button" id="btn-select-children" title="Add everything below the selected objects to the selection">Select children</button>
+          <button type="button" id="btn-group-sel" title="Put the selected objects into a new folder (Ctrl+G)">Group into folder</button>
         </div>
       </form>
 
       <div id="character" hidden></div>
-
-      <div class="panel-title" style="margin-top:12px">Model</div>
-      <div class="row"><label>Name</label><input id="m-name" type="text" /></div>
-      <div class="hint">
-        <b>Keys</b><br />
-        W / E / R / A — move / rotate / size / anchor<br />
-        Ctrl+D duplicate · Del delete · Ctrl+A select all<br />
-        Shift+click add · Shift+drag box-select<br />
-        Ctrl+Z undo · Ctrl+Y redo · Ctrl+S save<br />
-        F focus · Esc deselect<br />
-        1 / 3 / 7 / 5 — front / side / top / persp<br />
-        Space play · K key · ← → frame · Home / End
-      </div>
     </aside>
   </main>
 
   <section id="timeline">
     <div class="tl-head">
-      <span class="label">Animation</span>
-      <select id="tl-clip" title="Active clip. Pick 'Rest pose' to edit the model itself."></select>
-      <button id="tl-new" title="Create an empty clip">New clip</button>
-      <span class="tl-presets">
-        <button id="tl-preset-walk" title="Add a walk cycle for the selected character">Walk</button>
-        <button id="tl-preset-idle" title="Add an idle loop for the selected character">Idle</button>
-        <button id="tl-preset-attack" title="Add a sword swing for the selected character">Attack</button>
-      </span>
-      <button id="tl-rename">Rename</button>
-      <button id="tl-dup">Duplicate</button>
-      <button id="tl-del" class="danger">Delete clip</button>
-      <span class="sep"></span>
-      <button id="tl-play" class="icon" title="Play / pause (Space)">▶</button>
-      <button id="tl-stop" class="icon" title="Stop and rewind">■</button>
-      <label class="check"><input id="tl-loop" type="checkbox" checked /> Loop</label>
-      <label class="field">Frame <input id="tl-frame" type="number" min="0" step="1" /></label>
-      <label class="field">Length <input id="tl-length" type="number" min="1" max="100000" step="1" /></label>
-      <label class="field">FPS <input id="tl-fps" type="number" min="1" max="120" step="1" /></label>
-      <select id="tl-interp" title="How values move between keys">
-        <option value="smooth">Smooth</option>
-        <option value="linear">Linear</option>
-      </select>
-      <span class="sep"></span>
-      <button id="tl-key" title="Key the selected part's pose at this frame (K)">Key</button>
-      <button id="tl-key-all" title="Key every animated part at this frame (holds the pose)">Key all</button>
-      <button id="tl-del-key" title="Delete the selected part's key at this frame">Delete key</button>
-      <button id="tl-del-track" title="Remove every key of the selected part">Remove track</button>
-      <button id="tl-collapse" class="icon" title="Collapse / expand">▾</button>
+      <div class="tl-row">
+        <span class="label">Animation</span>
+        <select id="tl-clip" title="Active clip. Pick 'Rest pose' to edit the model itself."></select>
+        <button id="tl-new" title="Create an empty clip">New clip</button>
+        <span class="tl-presets">
+          <span class="label">Presets</span>
+          <button id="tl-preset-walk" title="Add a walk cycle for the selected character">Walk</button>
+          <button id="tl-preset-idle" title="Add an idle loop for the selected character">Idle</button>
+          <button id="tl-preset-attack" title="Add a sword swing for the selected character">Attack</button>
+        </span>
+        <span class="spacer"></span>
+        <button id="tl-rename">Rename</button>
+        <button id="tl-dup">Duplicate</button>
+        <button id="tl-del" class="danger">Delete clip</button>
+        <button id="tl-collapse" class="icon" title="Collapse / expand">▾</button>
+      </div>
+      <div class="tl-row">
+        <button id="tl-play" class="icon" title="Play / pause (Space)">▶</button>
+        <button id="tl-stop" class="icon" title="Stop and rewind">■</button>
+        <label class="check"><input id="tl-loop" type="checkbox" checked /> Loop</label>
+        <span class="sep"></span>
+        <label class="field">Frame <input id="tl-frame" type="number" min="0" step="1" /></label>
+        <label class="field">Length <input id="tl-length" type="number" min="1" max="100000" step="1" /></label>
+        <label class="field">FPS <input id="tl-fps" type="number" min="1" max="120" step="1" /></label>
+        <label class="field">Easing
+          <select id="tl-interp" title="How values move between keys">
+            <option value="smooth">Smooth</option>
+            <option value="linear">Linear</option>
+          </select>
+        </label>
+        <span class="sep"></span>
+        <button id="tl-key" title="Key the selected objects' pose at this frame (K)">Key</button>
+        <button id="tl-key-all" title="Key every animated object at this frame (holds the pose)">Key all</button>
+        <button id="tl-del-key" title="Delete the selected objects' keys at this frame">Delete key</button>
+        <button id="tl-del-track" title="Remove every key of the selected objects">Remove track</button>
+      </div>
     </div>
     <div class="tl-body">
-      <div id="tl-empty" class="muted">No clip selected. Create a clip or pick a preset, then pose parts with the gizmo: every change becomes a keyframe at the current frame.</div>
+      <div id="tl-empty" class="muted">No clip selected. Create a clip or pick a preset, then pose objects with the gizmo: every change becomes a keyframe at the current frame.</div>
       <div id="tl-grid" hidden>
         <div id="tl-names">
           <div class="tl-ruler-spacer"></div>

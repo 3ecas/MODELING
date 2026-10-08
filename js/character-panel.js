@@ -2,6 +2,7 @@
 // Shown whenever the selected part belongs to a character (a tree whose root carries a recipe).
 
 import { RECIPE_SLIDERS, RECIPE_COLORS, RECIPE_FLAGS, DEFAULT_RECIPE, randomRecipe, characterRootOf } from './templates.js';
+import { createColorPicker } from './colorpicker.js';
 
 export function initCharacterPanel(app) {
   const { model } = app;
@@ -38,19 +39,35 @@ export function initCharacterPanel(app) {
     inputs[s.key] = { input, val };
   }
 
+  // Colours: a swatch per role; clicking it unfolds the inline picker under the row (no pop-ups).
+  let openPicker = null;
   for (const c of RECIPE_COLORS) {
     const row = document.createElement('div');
-    row.className = 'row';
+    row.className = 'row colour';
     const label = document.createElement('label');
     label.textContent = c.label;
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.title = c.label;
-    input.addEventListener('input', () => apply({ [c.key]: input.value }, false));
-    input.addEventListener('change', () => apply({ [c.key]: input.value }, true));
-    row.append(label, input);
-    panel.appendChild(row);
-    inputs[c.key] = { input };
+    const swatch = document.createElement('button');
+    swatch.type = 'button';
+    swatch.className = 'swatch-btn';
+    swatch.title = `${c.label}: click to edit`;
+    const hex = document.createElement('span');
+    hex.className = 'val';
+    const holder = document.createElement('div');
+    holder.className = 'cp-holder';
+    holder.hidden = true;
+    const picker = createColorPicker(holder, {
+      onInput: v => { swatch.style.background = v; hex.textContent = v; apply({ [c.key]: v }, false); },
+      onChange: v => apply({ [c.key]: v }, true),
+    });
+    swatch.addEventListener('click', () => {
+      const open = holder.hidden;
+      if (openPicker && openPicker !== holder) openPicker.hidden = true;
+      holder.hidden = !open;
+      openPicker = open ? holder : null;
+    });
+    row.append(label, swatch, hex);
+    panel.append(row, holder);
+    inputs[c.key] = { swatch, hex, picker, holder };
   }
 
   const hairRow = document.createElement('div');
@@ -104,13 +121,19 @@ export function initCharacterPanel(app) {
     panel.hidden = !r;
     if (!r) return;
     const active = document.activeElement;
-    if (active && panel.contains(active) && (active.type === 'range' || active.type === 'color')) return; // mid-drag
+    if (active && panel.contains(active) && active.type === 'range') return; // mid-drag
+    if (RECIPE_COLORS.some(c => inputs[c.key].picker.dragging)) return;
     const recipe = { ...DEFAULT_RECIPE, ...r.recipe };
     for (const s of RECIPE_SLIDERS) {
       inputs[s.key].input.value = recipe[s.key];
       inputs[s.key].val.textContent = Number(recipe[s.key]).toFixed(2);
     }
-    for (const c of RECIPE_COLORS) inputs[c.key].input.value = recipe[c.key];
+    for (const c of RECIPE_COLORS) {
+      const { swatch, hex, picker } = inputs[c.key];
+      swatch.style.background = recipe[c.key];
+      hex.textContent = recipe[c.key];
+      if (!picker.dragging) picker.set(recipe[c.key]);
+    }
     for (const f of RECIPE_FLAGS) inputs[f.key].input.checked = !!recipe[f.key];
     inputs.hairStyle.input.value = recipe.hairStyle;
   }
