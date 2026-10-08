@@ -242,18 +242,26 @@ export class Animator {
 
 // ----- presets for the humanoid kit -----
 
-/** Finds the parts of a humanoid by their role name (e.g. 'Upper arm L') under a root part. */
+// Older, bone-less humanoids (format 2) named their parts after body parts; map those to bone roles.
+const LEGACY_ROLES = {
+  Hips: 'hips', Torso: 'spine', Neck: 'neck', Head: 'head',
+  'Upper arm L': 'arm_L', 'Lower arm L': 'forearm_L', 'Hand L': 'hand_L',
+  'Upper arm R': 'arm_R', 'Lower arm R': 'forearm_R', 'Hand R': 'hand_R',
+  'Upper leg L': 'thigh_L', 'Lower leg L': 'shin_L', 'Foot L': 'foot_L',
+  'Upper leg R': 'thigh_R', 'Lower leg R': 'shin_R', 'Foot R': 'foot_R',
+};
+
+/** Finds the bones of a humanoid by role ('hips', 'arm_L', ...) under a root part. */
 function limbMap(model, root) {
   const map = {};
-  const walk = id => {
-    for (const c of model.childrenOf(id)) {
-      const role = c.name.replace(/^.*?\b(Hips|Torso|Neck|Head|Hair|Hat|Hat brim|Upper arm [LR]|Lower arm [LR]|Hand [LR]|Upper leg [LR]|Lower leg [LR]|Foot [LR]|Sword|Sword guard|Shield)$/, '$1');
-      map[role] = c;
-      walk(c.id);
-    }
+  const hasBones = root.type === 'bone';
+  const walk = part => {
+    const role = hasBones ? (part.type === 'bone' ? part.name : null) : LEGACY_ROLES[part.name];
+    if (role && !map[role]) map[role] = part;
+    for (const c of model.childrenOf(part.id)) walk(c);
   };
-  map.Hips = root;
-  walk(root.id);
+  walk(root);
+  map.hips = map.hips || root;
   return map;
 }
 
@@ -274,16 +282,16 @@ export function walkClip(model, root) {
   const L = limbMap(model, root);
   const clip = newClip('walk', { fps: 24, length: 24 });
   const swing = 35, knee = 45, arm = 30, elbow = 20;
-  keyRot(clip, L['Upper leg L'], [[0, swing], [12, -swing], [24, swing]]);
-  keyRot(clip, L['Upper leg R'], [[0, -swing], [12, swing], [24, -swing]]);
-  keyRot(clip, L['Lower leg L'], [[0, 0], [6, knee], [12, 0], [18, 10], [24, 0]]);
-  keyRot(clip, L['Lower leg R'], [[0, 0], [6, 10], [12, 0], [18, knee], [24, 0]]);
-  keyRot(clip, L['Upper arm L'], [[0, -arm], [12, arm], [24, -arm]]);
-  keyRot(clip, L['Upper arm R'], [[0, arm], [12, -arm], [24, arm]]);
-  keyRot(clip, L['Lower arm L'], [[0, -elbow], [12, -elbow * 2], [24, -elbow]]);
-  keyRot(clip, L['Lower arm R'], [[0, -elbow * 2], [12, -elbow], [24, -elbow * 2]]);
-  keyPos(clip, L.Hips, [[0, 0, 0, 0], [6, 0, -0.04, 0], [12, 0, 0, 0], [18, 0, -0.04, 0], [24, 0, 0, 0]]);
-  keyRot(clip, L.Torso, [[0, 0, 6], [12, 0, -6], [24, 0, 6]]);
+  keyRot(clip, L['thigh_L'], [[0, swing], [12, -swing], [24, swing]]);
+  keyRot(clip, L['thigh_R'], [[0, -swing], [12, swing], [24, -swing]]);
+  keyRot(clip, L['shin_L'], [[0, 0], [6, knee], [12, 0], [18, 10], [24, 0]]);
+  keyRot(clip, L['shin_R'], [[0, 0], [6, 10], [12, 0], [18, knee], [24, 0]]);
+  keyRot(clip, L['arm_L'], [[0, -arm], [12, arm], [24, -arm]]);
+  keyRot(clip, L['arm_R'], [[0, arm], [12, -arm], [24, arm]]);
+  keyRot(clip, L['forearm_L'], [[0, -elbow], [12, -elbow * 2], [24, -elbow]]);
+  keyRot(clip, L['forearm_R'], [[0, -elbow * 2], [12, -elbow], [24, -elbow * 2]]);
+  keyPos(clip, L.hips, [[0, 0, 0, 0], [6, 0, -0.04, 0], [12, 0, 0, 0], [18, 0, -0.04, 0], [24, 0, 0, 0]]);
+  keyRot(clip, L.spine, [[0, 0, 6], [12, 0, -6], [24, 0, 6]]);
   return clip;
 }
 
@@ -291,11 +299,11 @@ export function walkClip(model, root) {
 export function idleClip(model, root) {
   const L = limbMap(model, root);
   const clip = newClip('idle', { fps: 24, length: 48 });
-  keyPos(clip, L.Hips, [[0, 0, 0, 0], [24, 0, -0.02, 0], [48, 0, 0, 0]]);
-  keyRot(clip, L.Torso, [[0, 0, 0, 0], [24, 3, 0, 0], [48, 0, 0, 0]]);
-  keyRot(clip, L.Head, [[0, 0, 0], [16, 0, 8], [32, 0, -8], [48, 0, 0]]);
-  keyRot(clip, L['Upper arm L'], [[0, 0, 0, 4], [24, 0, 0, 8], [48, 0, 0, 4]]);
-  keyRot(clip, L['Upper arm R'], [[0, 0, 0, -4], [24, 0, 0, -8], [48, 0, 0, -4]]);
+  keyPos(clip, L.hips, [[0, 0, 0, 0], [24, 0, -0.02, 0], [48, 0, 0, 0]]);
+  keyRot(clip, L.spine, [[0, 0, 0, 0], [24, 3, 0, 0], [48, 0, 0, 0]]);
+  keyRot(clip, L.head, [[0, 0, 0], [16, 0, 8], [32, 0, -8], [48, 0, 0]]);
+  keyRot(clip, L['arm_L'], [[0, 0, 0, 4], [24, 0, 0, 8], [48, 0, 0, 4]]);
+  keyRot(clip, L['arm_R'], [[0, 0, 0, -4], [24, 0, 0, -8], [48, 0, 0, -4]]);
   return clip;
 }
 
@@ -303,10 +311,10 @@ export function idleClip(model, root) {
 export function attackClip(model, root) {
   const L = limbMap(model, root);
   const clip = newClip('attack', { fps: 24, length: 20 });
-  keyRot(clip, L['Upper arm R'], [[0, 0], [6, -150], [10, -120], [14, -20], [20, 0]]);
-  keyRot(clip, L['Lower arm R'], [[0, 0], [6, -60], [10, -10], [14, -10], [20, 0]]);
-  keyRot(clip, L.Torso, [[0, 0, 0], [6, 0, 25], [12, 0, -20], [20, 0, 0]]);
-  keyRot(clip, L.Hips, [[0, 0, 0], [6, 0, 10], [12, 0, -10], [20, 0, 0]]);
+  keyRot(clip, L['arm_R'], [[0, 0], [6, -150], [10, -120], [14, -20], [20, 0]]);
+  keyRot(clip, L['forearm_R'], [[0, 0], [6, -60], [10, -10], [14, -10], [20, 0]]);
+  keyRot(clip, L.spine, [[0, 0, 0], [6, 0, 25], [12, 0, -20], [20, 0, 0]]);
+  keyRot(clip, L.hips, [[0, 0, 0], [6, 0, 10], [12, 0, -10], [20, 0, 0]]);
   return clip;
 }
 

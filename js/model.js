@@ -3,10 +3,10 @@
 // Children attach to the pivot, so a parent's size never distorts its children.
 
 import * as THREE from 'three';
-import { PART_TYPES, PALETTE, getGeometry, clampSides } from './parts.js';
+import { PART_TYPES, PALETTE, BONE_COLOR, getGeometry, clampSides, isBone } from './parts.js';
 import { sanitizeClip } from './animation.js';
 
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 
 export class Model {
   constructor(root) {
@@ -16,6 +16,7 @@ export class Model {
     this.animations = [];        // keyframe clips, see animation.js
     this._nextId = 1;
     this.wireframe = false;
+    this.showBones = true;       // bone markers drawn (x-ray) in the editor
     this.listeners = new Set();
   }
 
@@ -47,20 +48,23 @@ export class Model {
       position: vec(data.position, [0, 0.5, 0]),
       rotation: vec(data.rotation, [0, 0, 0]),
       size: vec(data.size, def.defaultSize),
-      offset: vec(data.offset, [0, 0, 0]),
+      offset: vec(data.offset, def.isBone ? def.defaultTip : [0, 0, 0]),
       sides: def.hasSides ? clampSides(data.sides ?? def.defaultSides) : 0,
-      color: typeof data.color === 'string' ? data.color : PALETTE[0],
+      color: typeof data.color === 'string' ? data.color : (def.isBone ? BONE_COLOR : PALETTE[0]),
       visible: data.visible !== false,
       parent: data.parent ?? null,
       // Character roots carry the recipe they were generated from (see templates.js).
       recipe: data.recipe && typeof data.recipe === 'object' ? { ...data.recipe } : null,
     };
 
-    const material = new THREE.MeshLambertMaterial({ color: part.color, flatShading: true });
+    const material = def.isBone
+      ? new THREE.MeshLambertMaterial({ color: part.color, flatShading: true, transparent: true, opacity: 0.7, depthTest: false })
+      : new THREE.MeshLambertMaterial({ color: part.color, flatShading: true });
     const mesh = new THREE.Mesh(getGeometry(part.type, part.sides), material);
     mesh.name = part.name;
     mesh.userData.partId = id;
-    mesh.castShadow = mesh.receiveShadow = true;
+    mesh.castShadow = mesh.receiveShadow = !def.isBone;
+    if (def.isBone) mesh.renderOrder = 1000; // bones draw on top of the body, like an x-ray armature
 
     const pivot = new THREE.Group();
     pivot.name = part.name;
@@ -182,7 +186,18 @@ export class Model {
     pivot.visible = part.visible;
     pivot.name = part.name;
     mesh.name = part.name;
-    mesh.position.fromArray(part.offset);
+    if (isBone(part)) {
+      // The marker runs from the pivot to the tip stored in `offset`.
+      const tip = new THREE.Vector3().fromArray(part.offset);
+      const len = tip.length();
+      mesh.position.set(0, 0, 0);
+      mesh.quaternion.setFromUnitVectors(UP, len > 1e-6 ? tip.divideScalar(len) : UP);
+      mesh.visible = this.showBones;
+    } else {
+      mesh.position.fromArray(part.offset);
+      mesh.quaternion.identity();
+      mesh.visible = true;
+    }
     const geo = getGeometry(part.type, part.sides);
     if (mesh.geometry !== geo) mesh.geometry = geo;
     mesh.material.color.set(part.color);
@@ -193,7 +208,8 @@ export class Model {
   applyTransform(part, { position, rotation, size }) {
     part.pivot.position.fromArray(position);
     part.pivot.rotation.set(...rotation.map(THREE.MathUtils.degToRad));
-    part.mesh.scale.fromArray(size);
+    if (isBone(part)) part.mesh.scale.set(size[0], Math.max(boneLength(part), 0.01), size[0]);
+    else part.mesh.scale.fromArray(size);
   }
 
   /** Reads the current transform of the Three.js objects (e.g. after a gizmo drag). */
@@ -202,8 +218,52 @@ export class Model {
     return {
       position: round(pivot.position.toArray()),
       rotation: round([pivot.rotation.x, pivot.rotation.y, pivot.rotation.z].map(THREE.MathUtils.radToDeg)),
-      size: round(mesh.scale.toArray()).map(v => Math.max(0.01, v)),
+      size: isBone(part) ? [...part.size] : round(mesh.scale.toArray()).map(v => Math.max(0.01, v)),
     };
+  }
+
+  /** Shows or hides the bone markers (bones keep working either way). */
+  setShowBones(on) {
+    this.showBones = !!on;
+    for (const p of this.parts.values()) if (isBone(p)) p.mesh.visible = this.showBones;
+  }
+
+  /** True when the part and all its ancestors are visible. */
+  isShown(part) {
+    let p = part;
+    while (p) {
+      if (!p.visible) return false;
+      p = p.parent != null ? this.parts.get(p.parent) : null;
+    }
+    return true;
+  }
+
+  /** Nearest ancestor (or the part itself) that satisfies `pred`, or null. */
+  nearest(part, pred) {
+    let p = part;
+    while (p) {
+      if (pred(p)) return p;
+      p = p.parent != null ? this.parts.get(p.parent) : null;
+    }
+    return null;
+  }
+
+  /** Rest-pose world matrices for every pivot and mesh, computed from the data (ignores any active pose). */
+  restMatrices() {
+    const pivotWorld = new Map(), meshWorld = new Map();
+    const pos = new THREE.Vector3(), quat = new THREE.Quaternion(), scl = new THREE.Vector3(), euler = new THREE.Euler();
+    for (const { part } of this.ordered()) {
+      const local = new THREE.Matrix4().compose(
+        pos.fromArray(part.position),
+        quat.setFromEuler(euler.set(...part.rotation.map(THREE.MathUtils.degToRad))),
+        scl.set(1, 1, 1),
+      );
+      const world = part.parent != null ? pivotWorld.get(part.parent).clone().multiply(local) : local;
+      pivotWorld.set(part.id, world);
+      const meshLocal = new THREE.Matrix4().compose(pos.fromArray(part.offset), quat.identity(), scl.fromArray(part.size));
+      meshWorld.set(part.id, world.clone().multiply(meshLocal));
+    }
+    return { pivotWorld, meshWorld };
   }
 
   /** Reads the Three.js objects back into the rest pose data (after a gizmo drag). */
@@ -321,6 +381,12 @@ function cloneTracks(tracks) {
     for (const [prop, keys] of Object.entries(t)) out[pid][prop] = keys.map(k => ({ f: k.f, v: [...k.v] }));
   }
   return out;
+}
+
+const UP = new THREE.Vector3(0, 1, 0);
+
+export function boneLength(part) {
+  return Math.hypot(part.offset[0], part.offset[1], part.offset[2]);
 }
 
 function vec(v, fallback) {

@@ -24,8 +24,17 @@
       <button id="btn-new" title="New empty model">New</button>
       <button id="btn-open" title="Open a .json project">Open</button>
       <button id="btn-save" title="Save project as .json (Ctrl+S)">Save</button>
-      <button id="btn-export-glb" title="Export as .glb with animations (Three.js, Godot, Unity, Unreal, Blender)">GLB</button>
-      <button id="btn-export-obj" title="Export as .obj (geometry only)">OBJ</button>
+      <div class="menu" id="export-menu">
+        <button id="btn-export" title="Export for game engines and other tools">Export ▾</button>
+        <div class="menu-list" hidden>
+          <button data-export="skinned" title="One skinned mesh per character with a skeleton and all clips. Three.js, Godot, Unity, Unreal, Blender.">GLB · skinned character <span class="muted">game-ready</span></button>
+          <button data-export="skinned-vc" title="Same, but colours stored per vertex so each character is a single draw call. Needs a vertex-colour material in Unity.">GLB · skinned, vertex colours <span class="muted">1 draw call</span></button>
+          <button data-export="parts" title="One node per part, like the editor. Good for editing in Blender.">GLB · separate parts</button>
+          <button data-export="obj" title="Geometry only: no colours, bones or animation.">OBJ · geometry only</button>
+          <div class="menu-sep"></div>
+          <button data-export="preview" title="Opens the example player with this model (skinned export).">Preview in player ↗</button>
+        </div>
+      </div>
       <input id="file-input" type="file" accept=".json,application/json" hidden />
     </div>
 
@@ -37,6 +46,7 @@
       <button data-add="sphere">Sphere</button>
       <button data-add="wedge">Wedge</button>
       <button data-add="plane">Plane</button>
+      <button data-add="bone" class="bone" title="Add a bone (a joint of the skeleton). Attach parts to bones; bones export as glTF joints.">Bone</button>
     </div>
 
     <div class="group">
@@ -68,6 +78,7 @@
       <label class="check"><input id="chk-pixel" type="checkbox" /> Pixel</label>
       <label class="check"><input id="chk-wire" type="checkbox" /> Wire</label>
       <label class="check"><input id="chk-grid" type="checkbox" checked /> Grid</label>
+      <label class="check" title="Show bone markers (x-ray). Hide them to click body parts behind bones."><input id="chk-bones" type="checkbox" checked /> Bones</label>
     </div>
   </header>
 
@@ -75,7 +86,7 @@
     <aside id="outliner">
       <div class="panel-title">Parts <span id="part-count" class="muted"></span></div>
       <ul id="part-list"></ul>
-      <div class="hint">Click a part to select it. Drag the gizmo to move, rotate, or resize. ◆ marks parts with keyframes in the current clip.</div>
+      <div class="hint">Click a part to select it. Drag the gizmo to move, rotate, or resize. Bones are the skeleton: parts attached to a bone move with it. ◆ marks parts with keyframes in the current clip.</div>
     </aside>
 
     <section id="viewport">
@@ -103,11 +114,11 @@
         <div class="row slider"><span class="axis x">X</span><input id="p-rsx" type="range" min="-180" max="180" step="1" /></div>
         <div class="row slider"><span class="axis y">Y</span><input id="p-rsy" type="range" min="-180" max="180" step="1" /></div>
         <div class="row slider"><span class="axis z">Z</span><input id="p-rsz" type="range" min="-180" max="180" step="1" /></div>
-        <div class="section">Size</div>
+        <div class="section" id="sec-size">Size</div>
         <div class="row xyz">
           <input id="p-sx" type="number" step="0.05" min="0.01" /><input id="p-sy" type="number" step="0.05" min="0.01" /><input id="p-sz" type="number" step="0.05" min="0.01" />
         </div>
-        <div class="section">Pivot offset <span class="muted" title="Shifts the shape away from its pivot point. Use it so limbs rotate from the joint.">?</span></div>
+        <div class="section" id="sec-offset">Pivot offset <span class="muted" title="Shifts the shape away from its pivot point. Use it so limbs rotate from the joint. For a bone this is the tip.">?</span></div>
         <div class="row xyz">
           <input id="p-ox" type="number" step="0.05" /><input id="p-oy" type="number" step="0.05" /><input id="p-oz" type="number" step="0.05" />
         </div>

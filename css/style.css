@@ -61,6 +61,21 @@ input[type="color"] {
   width: 40px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: none;
 }
 
+/* Drop-down menus */
+.menu { position: relative; display: inline-block; }
+.menu-list {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 280px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 4px; display: flex; flex-direction: column; box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+}
+.menu-list button { text-align: left; border: none; background: none; padding: 6px 10px; border-radius: 3px; }
+.menu-list button:hover { background: var(--accent); color: #1b1d22; }
+.menu-list button:hover .muted { color: #1b1d22; }
+.menu-list .muted { margin-left: 6px; font-size: 11px; }
+.menu-sep { height: 1px; background: var(--border); margin: 4px 2px; }
+button.bone { color: #8ad7ff; }
+#part-list .type.bone { color: #8ad7ff; }
+
 /* Toolbar */
 #toolbar {
   display: flex;

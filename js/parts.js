@@ -10,7 +10,14 @@ export const PART_TYPES = {
   sphere:   { label: 'Sphere',   hasSides: true,  defaultSize: [1, 1, 1], defaultSides: 8 },
   wedge:    { label: 'Wedge',    hasSides: false, defaultSize: [1, 1, 1] },
   plane:    { label: 'Plane',    hasSides: false, defaultSize: [1, 0.02, 1] },
+  // A bone is a joint of the skeleton: it has no exported geometry, only a pivot and a tip (stored in
+  // `offset`). Parts attached to a bone move with it; on export, bones become glTF joints.
+  bone:     { label: 'Bone',     hasSides: false, defaultSize: [0.08, 0.08, 0.08], isBone: true, defaultTip: [0, 0.25, 0] },
 };
+
+export const BONE_COLOR = '#8ad7ff';
+
+export const isBone = part => !!(part && PART_TYPES[part.type]?.isBone);
 
 // A compact old-school palette: skin tones, cloth, metals, nature.
 export const PALETTE = [
@@ -43,6 +50,7 @@ function build(type, n) {
     case 'cone':     g = new THREE.ConeGeometry(0.5, 1, n, 1, false); break;
     case 'sphere':   g = new THREE.SphereGeometry(0.5, n, Math.max(3, Math.ceil(n / 2))); break;
     case 'wedge':    g = wedgeGeometry(); break;
+    case 'bone':     g = boneGeometry(); break;
     case 'plane':    g = new THREE.BoxGeometry(1, 1, 1); break;
     case 'box':
     default:         g = new THREE.BoxGeometry(1, 1, 1); break;
@@ -101,11 +109,34 @@ function wedgeGeometry() {
     push(p0, p3, p2);
   }
 
+  return outwardWinding(fromTriangles(pos), new THREE.Vector3(0, -h / 3, h / 3)); // centroid of the wedge
+}
+
+// A bone marker: an octahedron from the pivot (0,0,0) to the tip (0,1,0), fattest near the base.
+// The model orients and stretches it to the bone's actual tip.
+function boneGeometry() {
+  const r = 0.5, y = 0.18;
+  const base = [0, 0, 0], tip = [0, 1, 0];
+  const ring = [[r, y, 0], [0, y, r], [-r, y, 0], [0, y, -r]];
+  const pos = [];
+  const push = (...pts) => pts.forEach(p => pos.push(...p));
+  for (let i = 0; i < 4; i++) {
+    const a = ring[i], b = ring[(i + 1) % 4];
+    push(base, a, b);
+    push(a, tip, b);
+  }
+  return outwardWinding(fromTriangles(pos), new THREE.Vector3(0, 0.4, 0));
+}
+
+function fromTriangles(pos) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.computeVertexNormals();
+  return g;
+}
 
-  // Make sure every face points outward (flip any triangle whose normal points toward the centre).
+// Makes every face point away from `center` (flips any triangle whose normal points inward).
+function outwardWinding(g, center) {
   const p = g.attributes.position;
   const nrm = g.attributes.normal;
   const c = new THREE.Vector3(), nv = new THREE.Vector3();
@@ -114,7 +145,7 @@ function wedgeGeometry() {
       (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3,
       (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3,
       (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3,
-    ).sub(new THREE.Vector3(0, -h / 3, h / 3)); // centroid of the wedge
+    ).sub(center);
     nv.set(nrm.getX(i), nrm.getY(i), nrm.getZ(i));
     if (nv.dot(c) < 0) {
       const x = p.getX(i + 1), y = p.getY(i + 1), z = p.getZ(i + 1);
